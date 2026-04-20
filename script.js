@@ -34,6 +34,7 @@ let state = {
   scale: 100,           // percent (100 = 1:1)
   process: 'FDM',
   material: 'PLA',
+  pricePerGram: 5,      // ฿/g — editable, auto-filled from material DB
   layer: 0.20,
   infill: 20,
   qty: 1,
@@ -63,10 +64,13 @@ function renderMaterialSelect() {
   MATERIALS[state.process].forEach(m => {
     const opt = document.createElement('option');
     opt.value = m.id;
-    opt.textContent = `${m.name} — ฿${m.pricePerGram}/g`;
+    opt.textContent = `${m.name} (฿${m.pricePerGram}/g)`;
     sel.appendChild(opt);
   });
   state.material = MATERIALS[state.process][0].id;
+  state.pricePerGram = MATERIALS[state.process][0].pricePerGram;
+  const ppg = $('pricePerGram');
+  if (ppg) ppg.value = state.pricePerGram;
 }
 
 function renderMaterialCards() {
@@ -210,6 +214,14 @@ function setupForm() {
   });
   $('material').addEventListener('change', (e) => {
     state.material = e.target.value;
+    const mat = getMaterial();
+    state.pricePerGram = mat.pricePerGram;
+    $('pricePerGram').value = state.pricePerGram;
+    recalc();
+  });
+  $('pricePerGram').addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    state.pricePerGram = (isNaN(v) || v < 0) ? 0 : v;
     recalc();
   });
   $('layer').addEventListener('change', (e) => {
@@ -311,9 +323,8 @@ function calcPrintTime() {
 function recalc() {
   const weight = calcWeight();
   const time = calcPrintTime();
-  const mat = getMaterial();
 
-  const filamentCost = weight * mat.pricePerGram * WASTE_FACTOR;
+  const filamentCost = weight * state.pricePerGram * WASTE_FACTOR;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
   const laborCost = time * state.laborRate;
 
@@ -387,7 +398,7 @@ function printQuote() {
   const mat = getMaterial();
   const weight = calcWeight();
   const time = calcPrintTime();
-  const filamentCost = weight * mat.pricePerGram * WASTE_FACTOR;
+  const filamentCost = weight * state.pricePerGram * WASTE_FACTOR;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
   const laborCost = time * state.laborRate;
   const perPiece = filamentCost + electricityCost + laborCost;
@@ -522,7 +533,7 @@ ${hasCustomer ? `
 <div class="summary-grid">
   <div class="cost-breakdown">
     <h4>รายละเอียดต้นทุน (ต่อชิ้น)</h4>
-    <div class="cb-row"><span>ค่าเส้นพลาสติก (${weight.toFixed(1)}g × ฿${mat.pricePerGram}/g + 5% waste)</span><span>${fmt(filamentCost)}</span></div>
+    <div class="cb-row"><span>ค่าเส้นพลาสติก (${weight.toFixed(1)}g × ฿${state.pricePerGram}/g + 5% waste)</span><span>${fmt(filamentCost)}</span></div>
     <div class="cb-row"><span>ค่าไฟฟ้า (${state.powerWatt}W × ${time.toFixed(2)}ชม. × ฿${state.elecRate}/kWh)</span><span>${fmt(electricityCost)}</span></div>
     <div class="cb-row"><span>ค่าแรงงาน (${time.toFixed(2)}ชม. × ฿${state.laborRate}/ชม.)</span><span>${fmt(laborCost)}</span></div>
   </div>
