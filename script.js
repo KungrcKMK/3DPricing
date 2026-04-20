@@ -120,10 +120,10 @@ function setupDropZone() {
     state.originalBbox = null;
     state.scale = 100;
     state.bbox = null;
-    $('scale').value = 100;
     $('fileInfo').classList.add('hidden');
     $('volumeInput').value = '';
     input.value = '';
+    setScaleInputsEnabled(false);
     recalc();
   });
 }
@@ -143,12 +143,12 @@ function handleFile(file) {
       state.scale = 100;
       state.volume = result.volume;
       state.bbox = result.bbox;
-      $('scale').value = 100;
       $('fileName').textContent = file.name;
       $('fileSize').textContent = formatBytes(file.size);
       $('fileTris').textContent = result.triangles.toLocaleString();
       $('fileInfo').classList.remove('hidden');
       $('volumeInput').value = result.volume.toFixed(2);
+      setScaleInputsEnabled(true);
       updateScaledDisplay();
       recalc();
     } catch (err) {
@@ -163,22 +163,34 @@ function updateScaledDisplay() {
   const s = state.scale / 100;
   const b = state.originalBbox;
   if (b) {
-    const sx = (b.x * s).toFixed(1);
-    const sy = (b.y * s).toFixed(1);
-    const sz = (b.z * s).toFixed(1);
+    const sx = b.x * s, sy = b.y * s, sz = b.z * s;
     const origText = `${b.x.toFixed(1)} × ${b.y.toFixed(1)} × ${b.z.toFixed(1)} mm`;
-    const scaledText = `${sx} × ${sy} × ${sz} mm`;
-    $('fileDims').textContent = (state.scale === 100) ? origText : `${origText}  →  ${scaledText}`;
-    state.bbox = { x: b.x * s, y: b.y * s, z: b.z * s };
+    const scaledText = `${sx.toFixed(1)} × ${sy.toFixed(1)} × ${sz.toFixed(1)} mm`;
+    const isUnit = Math.abs(state.scale - 100) < 0.01;
+    $('fileDims').textContent = isUnit ? origText : `${origText}  →  ${scaledText} (${state.scale.toFixed(0)}%)`;
+    state.bbox = { x: sx, y: sy, z: sz };
+    // Update target inputs without retriggering (set only if not focused)
+    const active = document.activeElement;
+    if (active !== $('targetX')) $('targetX').value = sx.toFixed(2);
+    if (active !== $('targetY')) $('targetY').value = sy.toFixed(2);
+    if (active !== $('targetZ')) $('targetZ').value = sz.toFixed(2);
   }
   if (state.originalVolume > 0) {
     const scaledVol = state.originalVolume * s * s * s;
     state.volume = scaledVol;
     const origVol = `${state.originalVolume.toFixed(2)} cm³`;
     const scaledVolText = `${scaledVol.toFixed(2)} cm³`;
-    $('fileVolume').textContent = (state.scale === 100) ? origVol : `${origVol}  →  ${scaledVolText} (×${(s*s*s).toFixed(2)})`;
+    const isUnit = Math.abs(state.scale - 100) < 0.01;
+    $('fileVolume').textContent = isUnit ? origVol : `${origVol}  →  ${scaledVolText} (×${(s*s*s).toFixed(2)})`;
     $('volumeInput').value = scaledVol.toFixed(2);
   }
+}
+
+function setScaleInputsEnabled(on) {
+  ['targetX', 'targetY', 'targetZ', 'resetScale'].forEach(id => {
+    $(id).disabled = !on;
+    if (!on) $(id).value = '';
+  });
 }
 
 function formatBytes(bytes) {
@@ -215,12 +227,25 @@ function setupForm() {
     state.originalVolume = 0;
     state.originalBbox = null;
     state.scale = 100;
-    $('scale').value = 100;
+    setScaleInputsEnabled(false);
     recalc();
   });
-  $('scale').addEventListener('input', (e) => {
-    const v = parseFloat(e.target.value);
-    state.scale = (isNaN(v) || v <= 0) ? 100 : v;
+
+  ['targetX', 'targetY', 'targetZ'].forEach((id, idx) => {
+    const axis = ['x', 'y', 'z'][idx];
+    $(id).addEventListener('input', (e) => {
+      if (!state.originalBbox) return;
+      const v = parseFloat(e.target.value);
+      if (isNaN(v) || v <= 0) return;
+      state.scale = (v / state.originalBbox[axis]) * 100;
+      updateScaledDisplay();
+      recalc();
+    });
+  });
+
+  $('resetScale').addEventListener('click', () => {
+    if (!state.originalBbox) return;
+    state.scale = 100;
     updateScaledDisplay();
     recalc();
   });

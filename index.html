@@ -101,9 +101,16 @@
           </div>
         </label>
 
-        <label class="field">
-          <span>สเกล (%)</span>
-          <input type="number" id="scale" min="1" step="5" value="100" title="100 = ขนาดเดิม, 200 = ขยาย 2 เท่า (ปริมาตร ×8)">
+        <label class="field full">
+          <span>ขนาดเป้าหมาย (mm) — กรอกแกนใดก็ได้ แกนอื่นปรับสัดส่วนอัตโนมัติ</span>
+          <div class="scale-inputs">
+            <input type="number" id="targetX" step="0.1" min="0.1" placeholder="X" disabled>
+            <span class="scale-x">×</span>
+            <input type="number" id="targetY" step="0.1" min="0.1" placeholder="Y" disabled>
+            <span class="scale-x">×</span>
+            <input type="number" id="targetZ" step="0.1" min="0.1" placeholder="Z" disabled>
+            <button type="button" class="btn btn-ghost small" id="resetScale" disabled>รีเซ็ต</button>
+          </div>
         </label>
 
         <label class="field">

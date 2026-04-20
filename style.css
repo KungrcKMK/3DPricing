@@ -227,6 +227,36 @@ body {
   color: var(--primary-dark);
 }
 
+.scale-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.scale-inputs input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+}
+.scale-inputs input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(234, 91, 12, 0.12);
+}
+.scale-inputs input:disabled {
+  background: #f5f7fa;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.scale-x {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .checkbox-row {
   display: flex;
   flex-wrap: wrap;
