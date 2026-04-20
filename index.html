@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Print Pricing Calculator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <div class="brand">
+      <span class="brand-logo">3D</span>
+      <div>
+        <h1>3D Print Pricing</h1>
+        <p class="tagline">คำนวณราคางานพิมพ์ 3 มิติแบบ Instant Quote</p>
+      </div>
+    </div>
+    <nav>
+      <a href="#calc">คำนวณ</a>
+      <a href="#materials">วัสดุ</a>
+      <a href="#about">เกี่ยวกับ</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container" id="calc">
+  <section class="hero">
+    <h2>อัปโหลดไฟล์ STL เพื่อรับใบเสนอราคาทันที</h2>
+    <p>รองรับไฟล์ .stl ทั้งแบบ Binary และ ASCII — คำนวณปริมาตรและน้ำหนักอัตโนมัติ</p>
+  </section>
+
+  <div class="grid">
+    <!-- LEFT: Upload + settings -->
+    <div class="panel">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".stl" hidden>
+        <div class="drop-inner">
+          <div class="drop-icon">⬆</div>
+          <p class="drop-title">ลากไฟล์ STL มาวาง หรือ คลิกเพื่อเลือกไฟล์</p>
+          <p class="drop-sub">สูงสุด 100 MB</p>
+          <button class="btn btn-primary" id="browseBtn">เลือกไฟล์</button>
+        </div>
+      </div>
+
+      <div class="file-info hidden" id="fileInfo">
+        <div class="file-row"><span>ชื่อไฟล์</span><strong id="fileName">—</strong></div>
+        <div class="file-row"><span>ขนาดไฟล์</span><strong id="fileSize">—</strong></div>
+        <div class="file-row"><span>จำนวน Triangle</span><strong id="fileTris">—</strong></div>
+        <div class="file-row"><span>ขนาดชิ้นงาน (X×Y×Z)</span><strong id="fileDims">—</strong></div>
+        <div class="file-row highlight"><span>ปริมาตร</span><strong id="fileVolume">—</strong></div>
+        <button class="btn btn-ghost small" id="clearFile">ลบไฟล์</button>
+      </div>
+
+      <h3 class="section-title">การตั้งค่าพิมพ์</h3>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>เทคโนโลยี</span>
+          <select id="process">
+            <option value="FDM">FDM / FFF</option>
+            <option value="SLA">SLA / Resin</option>
+            <option value="SLS">SLS (Nylon)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>วัสดุ</span>
+          <select id="material"></select>
+        </label>
+
+        <label class="field">
+          <span>สี</span>
+          <select id="color">
+            <option>ขาว</option>
+            <option>ดำ</option>
+            <option>เทา</option>
+            <option>แดง</option>
+            <option>น้ำเงิน</option>
+            <option>เหลือง</option>
+            <option>เขียว</option>
+            <option>ใส</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>ความหนาชั้น (Layer Height)</span>
+          <select id="layer">
+            <option value="0.30">0.30 mm (เร็ว หยาบ)</option>
+            <option value="0.20" selected>0.20 mm (ปกติ)</option>
+            <option value="0.16">0.16 mm (ละเอียด)</option>
+            <option value="0.12">0.12 mm (ละเอียดมาก)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>ความหนาแน่น Infill</span>
+          <div class="range-wrap">
+            <input type="range" id="infill" min="5" max="100" value="20" step="5">
+            <span class="range-val"><span id="infillVal">20</span>%</span>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>ปริมาตรชิ้นงาน (cm³)</span>
+          <input type="number" id="volumeInput" min="0" step="0.1" placeholder="กรอกเองหรืออัปโหลดไฟล์">
+        </label>
+
+        <label class="field">
+          <span>จำนวน (ชิ้น)</span>
+          <input type="number" id="qty" min="1" value="1">
+        </label>
+
+        <label class="field">
+          <span>กำลังไฟเครื่อง (W)</span>
+          <input type="number" id="powerWatt" min="0" step="1" value="150">
+        </label>
+
+        <label class="field">
+          <span>ค่าไฟฟ้า (฿/kWh)</span>
+          <input type="number" id="elecRate" min="0" step="0.1" value="4.5">
+        </label>
+
+        <label class="field full">
+          <span>ค่าแรงงาน (฿/ชม.)</span>
+          <input type="number" id="laborRate" min="0" step="10" value="200">
+        </label>
+      </div>
+
+      <h3 class="section-title">ข้อมูลลูกค้า (ไม่บังคับ)</h3>
+      <div class="form-grid">
+        <label class="field">
+          <span>ชื่อลูกค้า</span>
+          <input type="text" id="custName" placeholder="ชื่อ-นามสกุล หรือบริษัท">
+        </label>
+        <label class="field">
+          <span>เบอร์โทร</span>
+          <input type="text" id="custPhone" placeholder="08x-xxx-xxxx">
+        </label>
+        <label class="field">
+          <span>อีเมล</span>
+          <input type="email" id="custEmail" placeholder="email@example.com">
+        </label>
+        <label class="field">
+          <span>ที่อยู่</span>
+          <input type="text" id="custAddress" placeholder="ที่อยู่จัดส่ง">
+        </label>
+      </div>
+    </div>
+
+    <!-- RIGHT: Quote -->
+    <aside class="panel quote-panel">
+      <h3 class="section-title">ใบเสนอราคา</h3>
+      <div class="quote-summary">
+        <div class="summary-row"><span>น้ำหนัก (โดยประมาณ)</span><strong id="outWeight">0 g</strong></div>
+        <div class="summary-row"><span>เวลาพิมพ์ (โดยประมาณ)</span><strong id="outTime">0 ชม.</strong></div>
+        <div class="summary-row"><span>จำนวน</span><strong id="outQty">1 ชิ้น</strong></div>
+      </div>
+
+      <div class="breakdown">
+        <div class="bd-row"><span>ค่าเส้นพลาสติก</span><span id="costFilament">฿0</span></div>
+        <div class="bd-row"><span>ค่าไฟฟ้า</span><span id="costElectricity">฿0</span></div>
+        <div class="bd-row"><span>ค่าแรงงาน</span><span id="costLabor">฿0</span></div>
+      </div>
+
+      <div class="grand-total">
+        <span>ราคารวมทั้งสิ้น</span>
+        <strong id="total">฿0</strong>
+      </div>
+
+      <button class="btn btn-primary full-width" id="printQuoteBtn">🖨 พิมพ์ใบเสนอราคา</button>
+      <button class="btn btn-ghost full-width" id="orderBtn">ยืนยันสั่งซื้อ</button>
+      <button class="btn btn-ghost full-width" id="copyBtn">คัดลอกใบเสนอราคา</button>
+
+      <p class="disclaimer">* ราคาเป็นประมาณการเท่านั้น ราคาจริงอาจเปลี่ยนแปลงตามความซับซ้อนของชิ้นงาน</p>
+    </aside>
+  </div>
+
+  <!-- Materials reference -->
+  <section class="materials-section" id="materials">
+    <h2>วัสดุที่รองรับ</h2>
+    <div class="material-cards" id="materialCards"></div>
+  </section>
+
+  <section class="about" id="about">
+    <h2>สูตรคำนวณราคา</h2>
+    <ol>
+      <li><strong>น้ำหนัก</strong> = ปริมาตร (cm³) × ความหนาแน่นวัสดุ (g/cm³) × (shell 15% + Infill% × 85%)</li>
+      <li><strong>เวลาพิมพ์</strong> = น้ำหนัก ÷ อัตราการพิมพ์ × (0.20 ÷ Layer Height)</li>
+      <li><strong>ค่าเส้นพลาสติก</strong> = น้ำหนัก × ราคาวัสดุ/กรัม × (1 + 5% waste)</li>
+      <li><strong>ค่าไฟฟ้า</strong> = (กำลังไฟ W × เวลาพิมพ์ ÷ 1000) × ราคาไฟ/kWh</li>
+      <li><strong>ค่าแรงงาน</strong> = เวลาพิมพ์ × ค่าแรง/ชั่วโมง</li>
+      <li><strong>รวมทั้งสิ้น</strong> = (ค่าเส้น + ค่าไฟ + ค่าแรง) × จำนวนชิ้น</li>
+    </ol>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>© 2026 3D Print Pricing Calculator · สร้างด้วย ❤ เพื่อการคำนวณที่แม่นยำ</p>
+  </div>
+</footer>
+
+<script src="stl-parser.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
