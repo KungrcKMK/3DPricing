@@ -28,7 +28,10 @@ const DEFAULT_LABOR_RATE = 200; // ฿/hr
 
 // ============= STATE =============
 let state = {
-  volume: 0,     // cm^3 (from STL or manual)
+  volume: 0,            // cm^3 — effective (after scale) used for pricing
+  originalVolume: 0,    // cm^3 — from STL before scale
+  originalBbox: null,   // {x, y, z} mm — from STL before scale
+  scale: 100,           // percent (100 = 1:1)
   process: 'FDM',
   material: 'PLA',
   layer: 0.20,
@@ -113,7 +116,11 @@ function setupDropZone() {
   $('clearFile').addEventListener('click', () => {
     state.file = null;
     state.volume = 0;
+    state.originalVolume = 0;
+    state.originalBbox = null;
+    state.scale = 100;
     state.bbox = null;
+    $('scale').value = 100;
     $('fileInfo').classList.add('hidden');
     $('volumeInput').value = '';
     input.value = '';
@@ -131,15 +138,18 @@ function handleFile(file) {
     try {
       const result = STLParser.parse(e.target.result);
       state.file = file;
+      state.originalVolume = result.volume;
+      state.originalBbox = result.bbox;
+      state.scale = 100;
       state.volume = result.volume;
       state.bbox = result.bbox;
+      $('scale').value = 100;
       $('fileName').textContent = file.name;
       $('fileSize').textContent = formatBytes(file.size);
       $('fileTris').textContent = result.triangles.toLocaleString();
-      $('fileDims').textContent = `${result.bbox.x.toFixed(1)} × ${result.bbox.y.toFixed(1)} × ${result.bbox.z.toFixed(1)} mm`;
-      $('fileVolume').textContent = `${result.volume.toFixed(2)} cm³`;
       $('fileInfo').classList.remove('hidden');
       $('volumeInput').value = result.volume.toFixed(2);
+      updateScaledDisplay();
       recalc();
     } catch (err) {
       alert('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
@@ -147,6 +157,28 @@ function handleFile(file) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+function updateScaledDisplay() {
+  const s = state.scale / 100;
+  const b = state.originalBbox;
+  if (b) {
+    const sx = (b.x * s).toFixed(1);
+    const sy = (b.y * s).toFixed(1);
+    const sz = (b.z * s).toFixed(1);
+    const origText = `${b.x.toFixed(1)} × ${b.y.toFixed(1)} × ${b.z.toFixed(1)} mm`;
+    const scaledText = `${sx} × ${sy} × ${sz} mm`;
+    $('fileDims').textContent = (state.scale === 100) ? origText : `${origText}  →  ${scaledText}`;
+    state.bbox = { x: b.x * s, y: b.y * s, z: b.z * s };
+  }
+  if (state.originalVolume > 0) {
+    const scaledVol = state.originalVolume * s * s * s;
+    state.volume = scaledVol;
+    const origVol = `${state.originalVolume.toFixed(2)} cm³`;
+    const scaledVolText = `${scaledVol.toFixed(2)} cm³`;
+    $('fileVolume').textContent = (state.scale === 100) ? origVol : `${origVol}  →  ${scaledVolText} (×${(s*s*s).toFixed(2)})`;
+    $('volumeInput').value = scaledVol.toFixed(2);
+  }
 }
 
 function formatBytes(bytes) {
@@ -178,7 +210,18 @@ function setupForm() {
     recalc();
   });
   $('volumeInput').addEventListener('input', (e) => {
+    // Manual edit resets STL/scale linkage
     state.volume = parseFloat(e.target.value) || 0;
+    state.originalVolume = 0;
+    state.originalBbox = null;
+    state.scale = 100;
+    $('scale').value = 100;
+    recalc();
+  });
+  $('scale').addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    state.scale = (isNaN(v) || v <= 0) ? 100 : v;
+    updateScaledDisplay();
     recalc();
   });
   $('qty').addEventListener('input', (e) => {
@@ -276,7 +319,7 @@ function copyQuote() {
     `ไฟล์: ${state.file ? state.file.name : '(manual input)'}`,
     `เทคโนโลยี: ${state.process}`,
     `วัสดุ: ${mat.name}`,
-    `ปริมาตร: ${state.volume.toFixed(2)} cm³`,
+    `ปริมาตร: ${state.volume.toFixed(2)} cm³${state.scale !== 100 ? ' (สเกล ' + state.scale + '%)' : ''}`,
     `น้ำหนัก: ${weight.toFixed(1)} g`,
     `เวลาพิมพ์: ${time.toFixed(2)} ชม.`,
     `Infill: ${state.infill}% · Layer: ${state.layer}mm`,
@@ -440,8 +483,9 @@ ${hasCustomer ? `
       </td>
       <td>
         เทคโนโลยี: <strong>${state.process}</strong> · วัสดุ: <strong>${mat.name}</strong><br>
-        ปริมาตร ${state.volume.toFixed(2)} cm³ · น้ำหนัก ${weight.toFixed(1)} g<br>
-        เวลาพิมพ์ ${time.toFixed(2)} ชม. · Layer ${state.layer} mm · Infill ${state.infill}%
+        ปริมาตร ${state.volume.toFixed(2)} cm³${state.scale !== 100 ? ` (สเกล ${state.scale}%)` : ''} · น้ำหนัก ${weight.toFixed(1)} g<br>
+        ${state.bbox ? `ขนาด ${state.bbox.x.toFixed(1)}×${state.bbox.y.toFixed(1)}×${state.bbox.z.toFixed(1)} mm · ` : ''}เวลาพิมพ์ ${time.toFixed(2)} ชม.<br>
+        Layer ${state.layer} mm · Infill ${state.infill}%
       </td>
       <td class="num">${state.qty}</td>
       <td class="num">${fmt(perPiece)}</td>
