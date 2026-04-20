@@ -25,6 +25,7 @@ const SHELL_VOLUME_RATIO = 0.15; // outer shell is always printed ~100%, about 1
 const DEFAULT_POWER = { FDM: 150, SLA: 80, SLS: 2000 }; // watt
 const DEFAULT_ELEC_RATE = 4.5;  // ฿/kWh
 const DEFAULT_LABOR_RATE = 200; // ฿/hr
+const STORAGE_KEY_PRICES = '3dpricing:customPrices';
 
 // ============= STATE =============
 let state = {
@@ -68,9 +69,36 @@ function renderMaterialSelect() {
     sel.appendChild(opt);
   });
   state.material = MATERIALS[state.process][0].id;
-  state.pricePerGram = MATERIALS[state.process][0].pricePerGram;
+  applyPriceForMaterial();
+}
+
+// ============= CUSTOM PRICE STORAGE =============
+function getCustomPrices() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY_PRICES) || '{}'); }
+  catch { return {}; }
+}
+function saveCustomPrice(materialId, price) {
+  const prices = getCustomPrices();
+  prices[materialId] = price;
+  try { localStorage.setItem(STORAGE_KEY_PRICES, JSON.stringify(prices)); } catch {}
+}
+function removeCustomPrice(materialId) {
+  const prices = getCustomPrices();
+  delete prices[materialId];
+  try { localStorage.setItem(STORAGE_KEY_PRICES, JSON.stringify(prices)); } catch {}
+}
+function applyPriceForMaterial() {
+  const mat = getMaterial();
+  const custom = getCustomPrices();
+  const price = (custom[state.material] != null) ? custom[state.material] : mat.pricePerGram;
+  setPriceUI(price);
+}
+function setPriceUI(pricePerG) {
+  state.pricePerGram = pricePerG;
   const ppg = $('pricePerGram');
-  if (ppg) ppg.value = state.pricePerGram;
+  const ppk = $('pricePerKg');
+  if (ppg && document.activeElement !== ppg) ppg.value = pricePerG.toFixed(2);
+  if (ppk && document.activeElement !== ppk) ppk.value = (pricePerG * 1000).toFixed(0);
 }
 
 function renderMaterialCards() {
@@ -214,14 +242,30 @@ function setupForm() {
   });
   $('material').addEventListener('change', (e) => {
     state.material = e.target.value;
-    const mat = getMaterial();
-    state.pricePerGram = mat.pricePerGram;
-    $('pricePerGram').value = state.pricePerGram;
+    applyPriceForMaterial();
     recalc();
   });
   $('pricePerGram').addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
-    state.pricePerGram = (isNaN(v) || v < 0) ? 0 : v;
+    if (isNaN(v) || v < 0) return;
+    state.pricePerGram = v;
+    $('pricePerKg').value = (v * 1000).toFixed(0);
+    saveCustomPrice(state.material, v);
+    recalc();
+  });
+  $('pricePerKg').addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    if (isNaN(v) || v < 0) return;
+    const perG = v / 1000;
+    state.pricePerGram = perG;
+    $('pricePerGram').value = perG.toFixed(2);
+    saveCustomPrice(state.material, perG);
+    recalc();
+  });
+  $('resetPrice').addEventListener('click', () => {
+    const mat = getMaterial();
+    removeCustomPrice(state.material);
+    setPriceUI(mat.pricePerGram);
     recalc();
   });
   $('layer').addEventListener('change', (e) => {

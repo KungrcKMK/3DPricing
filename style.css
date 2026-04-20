@@ -227,6 +227,33 @@ body {
   color: var(--primary-dark);
 }
 
+.price-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.price-row input {
+  flex: 1;
+  min-width: 90px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+}
+.price-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(234, 91, 12, 0.12);
+}
+.price-unit {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .scale-inputs {
   display: flex;
   gap: 8px;
