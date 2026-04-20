@@ -168,6 +168,21 @@ body {
   border-radius: var(--radius);
   padding: 16px;
 }
+.thumbnail-wrap {
+  background: white;
+  border: 1px solid #ffd9bf;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+#thumbnail {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
 .file-info.hidden { display: none; }
 .file-row {
   display: flex;

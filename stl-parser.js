@@ -6,44 +6,48 @@ window.STLParser = (function () {
   function parseBinary(buffer) {
     const dv = new DataView(buffer);
     const triCount = dv.getUint32(80, true);
-    const triangles = [];
+    // Float32Array: 9 floats per triangle (3 verts × xyz)
+    const verts = new Float32Array(triCount * 9);
     let minX=Infinity, minY=Infinity, minZ=Infinity;
     let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
     let volume = 0;
     let offset = 84;
 
     for (let i = 0; i < triCount; i++) {
-      // skip normal (12 bytes)
-      offset += 12;
-      const v = [];
+      offset += 12; // skip normal
+      const base = i * 9;
       for (let j = 0; j < 3; j++) {
         const x = dv.getFloat32(offset, true); offset += 4;
         const y = dv.getFloat32(offset, true); offset += 4;
         const z = dv.getFloat32(offset, true); offset += 4;
-        v.push([x, y, z]);
+        verts[base + j*3] = x;
+        verts[base + j*3 + 1] = y;
+        verts[base + j*3 + 2] = z;
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
         if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
       }
-      // Signed tetrahedron volume from origin
-      volume += signedVolume(v[0], v[1], v[2]);
-      offset += 2; // attribute byte count
+      const a = [verts[base], verts[base+1], verts[base+2]];
+      const b = [verts[base+3], verts[base+4], verts[base+5]];
+      const c = [verts[base+6], verts[base+7], verts[base+8]];
+      volume += signedVolume(a, b, c);
+      offset += 2;
     }
 
     return {
       triangles: triCount,
-      volume: Math.abs(volume) / 1000, // mm^3 to cm^3
+      volume: Math.abs(volume) / 1000,
       bbox: {
-        x: maxX - minX,
-        y: maxY - minY,
-        z: maxZ - minZ,
+        x: maxX - minX, y: maxY - minY, z: maxZ - minZ,
+        minX, maxX, minY, maxY, minZ, maxZ,
       },
+      verts,
     };
   }
 
   function parseASCII(text) {
     const lines = text.split('\n');
-    const vertices = [];
+    const vertexBuf = [];
     let triCount = 0;
     let minX=Infinity, minY=Infinity, minZ=Infinity;
     let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
@@ -58,6 +62,7 @@ window.STLParser = (function () {
         const y = parseFloat(parts[2]);
         const z = parseFloat(parts[3]);
         currentTri.push([x, y, z]);
+        vertexBuf.push(x, y, z);
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
         if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
@@ -73,10 +78,10 @@ window.STLParser = (function () {
       triangles: triCount,
       volume: Math.abs(volume) / 1000,
       bbox: {
-        x: maxX - minX,
-        y: maxY - minY,
-        z: maxZ - minZ,
+        x: maxX - minX, y: maxY - minY, z: maxZ - minZ,
+        minX, maxX, minY, maxY, minZ, maxZ,
       },
+      verts: new Float32Array(vertexBuf),
     };
   }
 
