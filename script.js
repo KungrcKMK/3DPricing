@@ -56,8 +56,25 @@ document.addEventListener('DOMContentLoaded', () => {
   renderMaterialCards();
   setupDropZone();
   setupForm();
+  setupHardReload();
   recalc();
 });
+
+function setupHardReload() {
+  const btn = $('hardReload');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    // Unregister service workers if any (belt-and-suspenders)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+    }
+    // Force full reload with cache-busting query
+    const url = new URL(window.location.href);
+    url.searchParams.set('_cb', Date.now());
+    url.hash = ''; // drop hash to avoid scroll restore
+    window.location.replace(url.toString());
+  });
+}
 
 function renderMaterialSelect() {
   const sel = $('material');

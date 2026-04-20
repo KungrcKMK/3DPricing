@@ -85,6 +85,26 @@ body {
   transition: color 0.15s;
 }
 .site-header nav a:hover { color: var(--primary); }
+.nav-btn {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 1px solid #ffd9bf;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nav-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.nav-btn:active {
+  transform: scale(0.97);
+}
 
 /* HERO */
 .hero {
