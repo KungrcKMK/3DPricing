@@ -47,9 +47,11 @@ let state = {
   bbox: null,
   customer: { name: '', phone: '', email: '', address: '' },
   company: { name: '', addr1: '', addr2: '', phone: '', email: '', taxId: '' },
+  telegram: { token: '', chatId: '', enabled: false },
 };
 
 const COMPANY_STORAGE_KEY = '3dpricing.company';
+const TELEGRAM_STORAGE_KEY = '3dpricing.telegram';
 
 // ============= DOM =============
 const $ = (id) => document.getElementById(id);
@@ -63,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupThumbnailControls();
   loadCompany();
   setupCompanyForm();
+  loadTelegram();
+  setupTelegramForm();
   recalc();
 });
 
@@ -93,6 +97,191 @@ function setupCompanyForm() {
       catch (err) { /* storage full — ignore */ }
     });
   });
+}
+
+// ============= TELEGRAM =============
+function loadTelegram() {
+  try {
+    const raw = localStorage.getItem(TELEGRAM_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    Object.assign(state.telegram, saved);
+    if ($('tgBotToken')) $('tgBotToken').value = state.telegram.token || '';
+    if ($('tgChatId')) $('tgChatId').value = state.telegram.chatId || '';
+    if ($('tgEnabled')) $('tgEnabled').checked = !!state.telegram.enabled;
+  } catch (err) { /* corrupted — ignore */ }
+}
+
+function saveTelegram() {
+  try { localStorage.setItem(TELEGRAM_STORAGE_KEY, JSON.stringify(state.telegram)); }
+  catch (err) { /* storage full — ignore */ }
+}
+
+function setupTelegramForm() {
+  $('tgBotToken')?.addEventListener('input', (e) => {
+    state.telegram.token = e.target.value.trim();
+    saveTelegram();
+  });
+  $('tgChatId')?.addEventListener('input', (e) => {
+    state.telegram.chatId = e.target.value.trim();
+    saveTelegram();
+  });
+  $('tgEnabled')?.addEventListener('change', (e) => {
+    state.telegram.enabled = e.target.checked;
+    saveTelegram();
+    toast(state.telegram.enabled ? '✅ เปิดใช้งาน Telegram แล้ว' : '⏸ ปิดการส่ง Telegram', 'info');
+  });
+  $('tgHelpBtn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    alert(
+      '📘 วิธีตั้งค่า Telegram Bot\n\n' +
+      '1️⃣ สร้างบอท\n' +
+      '   • เปิด Telegram → ค้นหา @BotFather\n' +
+      '   • พิมพ์คำสั่ง /newbot\n' +
+      '   • ตั้งชื่อ (เช่น "3DPrint Quote")\n' +
+      '   • ตั้ง username ลงท้ายด้วย "bot"\n' +
+      '   • BotFather จะให้ Token หน้าตาแบบ\n     1234567890:ABCdefGHIJ...\n\n' +
+      '2️⃣ หา Chat ID\n' +
+      '   • ส่งข้อความใดๆ หาบอทที่เพิ่งสร้าง (ต้องกด Start ก่อน)\n' +
+      '   • เปิดลิงก์ในเบราว์เซอร์:\n' +
+      '     https://api.telegram.org/bot<TOKEN>/getUpdates\n' +
+      '     (แทน <TOKEN> ด้วย Token ข้างบน)\n' +
+      '   • มองหา "chat":{"id": 123456789 ...}\n' +
+      '   • เลขนั้นคือ Chat ID\n\n' +
+      '3️⃣ เอามากรอก + ติ๊ก "เปิดใช้งาน" + กด 🧪 ทดสอบส่ง\n\n' +
+      '🔒 Token เก็บใน browser ของคุณเท่านั้น ไม่ส่งไปที่อื่น'
+    );
+  });
+  $('tgTestBtn')?.addEventListener('click', async () => {
+    if (!state.telegram.token || !state.telegram.chatId) {
+      toast('❌ ยังไม่ได้กรอก Token หรือ Chat ID', 'error');
+      return;
+    }
+    const btn = $('tgTestBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังส่ง...';
+    try {
+      await sendTelegramMessage(
+        '🧪 <b>ทดสอบจาก 3D Print Pricing Calculator</b>\n' +
+        'เชื่อมต่อ Telegram Bot สำเร็จแล้ว ✅\n' +
+        `เวลา: ${new Date().toLocaleString('th-TH')}`
+      );
+      toast('✅ ส่งทดสอบสำเร็จ! ตรวจใน Telegram', 'success');
+    } catch (err) {
+      toast('❌ ส่งไม่สำเร็จ: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🧪 ทดสอบส่ง';
+    }
+  });
+}
+
+async function sendTelegramMessage(text) {
+  const url = `https://api.telegram.org/bot${state.telegram.token}/sendMessage`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: state.telegram.chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    })
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data.ok) {
+    throw new Error(data.description || `HTTP ${resp.status}`);
+  }
+  return data;
+}
+
+async function sendTelegramPhoto(dataUrl, caption) {
+  if (!dataUrl) return null;
+  const blob = await (await fetch(dataUrl)).blob();
+  const form = new FormData();
+  form.append('chat_id', state.telegram.chatId);
+  if (caption) form.append('caption', caption);
+  form.append('parse_mode', 'HTML');
+  form.append('photo', blob, 'quote-thumb.png');
+  const url = `https://api.telegram.org/bot${state.telegram.token}/sendPhoto`;
+  const resp = await fetch(url, { method: 'POST', body: form });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data.ok) {
+    throw new Error(data.description || `HTTP ${resp.status}`);
+  }
+  return data;
+}
+
+function buildTelegramQuoteText(ctx) {
+  // HTML parse mode — escape <>& if user data
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const c = state.customer;
+  const hasCustomer = c.name || c.phone || c.email || c.address;
+  const mat = getMaterial();
+  const lines = [
+    `📋 <b>ใบเสนอราคาใหม่</b>`,
+    `🔖 <code>${esc(ctx.quoteNo)}</code>`,
+    `📅 ${esc(ctx.dateStr)}`,
+  ];
+  if (state.company.name) {
+    lines.push(`🏢 ${esc(state.company.name)}`);
+  }
+  lines.push('');
+  if (hasCustomer) {
+    lines.push(`👤 <b>ลูกค้า</b>: ${esc(c.name || '-')}`);
+    if (c.phone) lines.push(`   📞 ${esc(c.phone)}`);
+    if (c.email) lines.push(`   📧 ${esc(c.email)}`);
+    if (c.address) lines.push(`   📍 ${esc(c.address)}`);
+    lines.push('');
+  }
+  lines.push(
+    `📦 <b>งาน</b>: ${esc(state.file ? state.file.name : 'manual input')}`,
+    `🔧 ${esc(state.process)} · ${esc(mat.name)} · สี${esc($('color').value)}`,
+    `⚙️ Infill ${state.infill}% · Layer ${state.layer}mm`
+  );
+  if (state.bbox) {
+    lines.push(`📏 ขนาด ${state.bbox.x.toFixed(1)}×${state.bbox.y.toFixed(1)}×${state.bbox.z.toFixed(1)} mm`);
+  }
+  lines.push(
+    `⚖️ น้ำหนัก ${ctx.weight.toFixed(1)} g · ⏱ ${ctx.time.toFixed(2)} ชม.`,
+    `📊 จำนวน <b>${state.qty}</b> ชิ้น`,
+    '',
+    '💰 <b>ต้นทุน</b> (รวม qty):',
+    `   • ค่าวัสดุ: ${fmt(ctx.filamentCost * state.qty)}`,
+    `   • ค่าไฟ: ${fmt(ctx.electricityCost * state.qty)}`,
+    `   • ค่าบริการเครื่อง: ${fmt(ctx.serviceCost * state.qty)}`,
+    `   ─────────`,
+    `   ยอดรวม: ${fmt(ctx.subtotal)}`,
+  );
+  if (state.riskPct > 0) {
+    lines.push(`   • ค่าความเสี่ยง (${state.riskPct}%): ${fmt(ctx.riskAmount)}`);
+  }
+  lines.push('', `💵 <b>รวมทั้งสิ้น: ${fmt(ctx.total)}</b>`);
+  return lines.join('\n');
+}
+
+async function sendQuoteToTelegram(ctx) {
+  const text = buildTelegramQuoteText(ctx);
+  await sendTelegramMessage(text);
+  // Photo is optional — don't fail the whole flow if thumbnail missing
+  const thumb = getThumbnailDataUrl();
+  if (thumb) {
+    try { await sendTelegramPhoto(thumb, `🖼 ชิ้นงาน ${ctx.quoteNo}`); }
+    catch (err) { console.warn('Telegram photo failed:', err); }
+  }
+}
+
+// ============= TOAST =============
+function toast(message, type = 'info', duration = 3000) {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, duration);
 }
 
 function setupHardReload() {
@@ -836,6 +1025,17 @@ function printQuote() {
   const c = state.customer;
   const hasCustomer = c.name || c.phone || c.email || c.address;
   const thumbDataUrl = getThumbnailDataUrl();
+
+  // Fire-and-forget Telegram send (don't block print window)
+  if (state.telegram.enabled && state.telegram.token && state.telegram.chatId) {
+    sendQuoteToTelegram({
+      quoteNo, dateStr: formatThaiDate(now),
+      weight, time, filamentCost, electricityCost, serviceCost,
+      subtotal, riskAmount, total,
+    })
+      .then(() => toast('📤 ส่งใบเสนอราคาเข้า Telegram แล้ว', 'success'))
+      .catch(err => toast('⚠️ ส่ง Telegram ไม่สำเร็จ: ' + err.message, 'error', 5000));
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="th">

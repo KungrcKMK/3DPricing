@@ -214,6 +214,28 @@
             <input type="text" id="coTaxId" placeholder="x-xxxx-xxxxx-xx-x">
           </label>
         </div>
+
+        <h4 class="subsection-title">📤 ส่งใบเสนอราคาเข้า Telegram (ตัวเลือก)</h4>
+        <div class="form-grid">
+          <label class="field full">
+            <span>
+              Bot Token
+              <button type="button" class="btn btn-ghost small" id="tgHelpBtn" style="float:right; font-size:11px;">❓ วิธีตั้งค่า</button>
+            </span>
+            <input type="password" id="tgBotToken" placeholder="1234567890:ABCDEFghij..." autocomplete="off">
+          </label>
+          <label class="field full">
+            <span>Chat ID</span>
+            <input type="text" id="tgChatId" placeholder="123456789" autocomplete="off">
+          </label>
+          <label class="field full" style="flex-direction:row; gap:8px; align-items:center;">
+            <input type="checkbox" id="tgEnabled" style="width:18px; height:18px; margin:0;">
+            <span style="color:var(--text); font-size:14px; font-weight:500;">เปิดใช้งาน — ส่งอัตโนมัติทุกครั้งที่กดพิมพ์ใบเสนอราคา</span>
+          </label>
+          <div class="field full">
+            <button type="button" class="btn btn-ghost small" id="tgTestBtn">🧪 ทดสอบส่ง</button>
+          </div>
+        </div>
       </details>
     </div>
 
@@ -255,7 +277,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=19"></script>
-<script src="script.js?v=19"></script>
+<script src="stl-parser.js?v=20"></script>
+<script src="script.js?v=20"></script>
 </body>
 </html>
