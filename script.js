@@ -843,48 +843,53 @@ function printQuote() {
 <meta charset="UTF-8">
 <title>ใบเสนอราคา ${quoteNo}</title>
 <style>
-  @page { margin: 1.5cm; size: A4; }
+  @page { margin: 1.2cm 1.4cm; size: A4; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Sarabun','Segoe UI','Prompt',sans-serif; color: #2c3e50; font-size: 14px; line-height: 1.5; padding: 20px; max-width: 820px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #ea5b0c; padding-bottom: 16px; margin-bottom: 20px; }
-  .brand { display: flex; gap: 14px; align-items: center; }
-  .logo { background: linear-gradient(135deg,#ea5b0c,#c74900); color: white; font-weight: 800; font-size: 22px; width: 54px; height: 54px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-  .brand-text h1 { font-size: 20px; color: #1a2332; }
-  .brand-text p { font-size: 12px; color: #6b7a8f; }
-  .company { text-align: right; font-size: 12px; color: #555; line-height: 1.6; }
-  .company strong { font-size: 14px; color: #1a2332; display: block; margin-bottom: 4px; }
-  .title { text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 4px; color: #1a2332; margin: 20px 0 8px; }
-  .title-en { text-align: center; font-size: 13px; color: #6b7a8f; letter-spacing: 3px; margin-bottom: 20px; }
-  .meta { display: flex; justify-content: space-between; background: #fff3eb; border: 1px solid #ffd9bf; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+  html, body { height: auto; }
+  body { font-family: 'Sarabun','Segoe UI','Prompt',sans-serif; color: #2c3e50; font-size: 12px; line-height: 1.4; padding: 0; max-width: 820px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #ea5b0c; padding-bottom: 10px; margin-bottom: 12px; }
+  .brand { display: flex; gap: 10px; align-items: center; }
+  .logo { background: linear-gradient(135deg,#ea5b0c,#c74900); color: white; font-weight: 800; font-size: 16px; width: 42px; height: 42px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .brand-text h1 { font-size: 16px; color: #1a2332; }
+  .brand-text p { font-size: 10.5px; color: #6b7a8f; }
+  .company { text-align: right; font-size: 10.5px; color: #555; line-height: 1.45; }
+  .company strong { font-size: 12px; color: #1a2332; display: block; margin-bottom: 2px; }
+  .title { text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 4px; color: #1a2332; margin: 10px 0 2px; }
+  .title-en { text-align: center; font-size: 10.5px; color: #6b7a8f; letter-spacing: 3px; margin-bottom: 12px; }
+  .meta { display: flex; justify-content: space-between; background: #fff3eb; border: 1px solid #ffd9bf; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 11.5px; }
   .meta strong { color: #c74900; margin-right: 6px; }
-  .cust-box { border: 1px solid #e4e8ef; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
-  .cust-box h3 { font-size: 12px; color: #6b7a8f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-  .cust-box .cust-name { font-size: 16px; font-weight: 700; color: #1a2332; margin-bottom: 4px; }
-  .cust-box .cust-detail { font-size: 13px; color: #555; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #e4e8ef; }
-  thead th { background: #ea5b0c; color: white; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600; }
+  .cust-box { border: 1px solid #e4e8ef; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+  .cust-box h3 { font-size: 10px; color: #6b7a8f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .cust-box .cust-name { font-size: 13px; font-weight: 700; color: #1a2332; margin-bottom: 2px; }
+  .cust-box .cust-detail { font-size: 11.5px; color: #555; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border: 1px solid #e4e8ef; }
+  thead th { background: #ea5b0c; color: white; padding: 7px 10px; text-align: left; font-size: 11.5px; font-weight: 600; }
   thead th.num { text-align: right; }
-  tbody td { padding: 12px; border-bottom: 1px solid #e4e8ef; font-size: 13px; vertical-align: top; }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid #e4e8ef; font-size: 11.5px; vertical-align: top; }
   tbody td.num { text-align: right; }
-  tbody td .spec { font-size: 12px; color: #6b7a8f; margin-top: 4px; }
-  .summary-grid { display: flex; gap: 16px; margin-bottom: 20px; }
-  .cost-breakdown { flex: 1; background: #f8fafc; border: 1px solid #e4e8ef; padding: 14px; border-radius: 8px; }
-  .cost-breakdown h4 { font-size: 12px; color: #6b7a8f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-  .cost-breakdown .cb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
-  .grand { width: 320px; background: linear-gradient(135deg,#ea5b0c,#c74900); color: white; padding: 18px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
-  .grand span { font-size: 14px; opacity: 0.9; }
-  .grand strong { font-size: 22px; }
-  .notes { border-top: 1px dashed #ccc; padding-top: 14px; margin-top: 20px; font-size: 12px; color: #555; }
-  .notes h4 { color: #1a2332; margin-bottom: 6px; font-size: 13px; }
-  .notes ul { padding-left: 18px; }
-  .notes li { padding: 2px 0; }
-  .sign-row { display: flex; justify-content: space-around; margin-top: 60px; gap: 40px; }
+  tbody td .spec { font-size: 10.5px; color: #6b7a8f; margin-top: 3px; }
+  .summary-grid { display: flex; gap: 12px; margin-bottom: 10px; align-items: stretch; }
+  .cost-breakdown { flex: 1; background: #f8fafc; border: 1px solid #e4e8ef; padding: 10px 12px; border-radius: 6px; }
+  .cost-breakdown h4 { font-size: 10.5px; color: #6b7a8f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .cost-breakdown .cb-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; gap: 8px; }
+  .grand { width: 260px; background: linear-gradient(135deg,#ea5b0c,#c74900); color: white; padding: 12px 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .grand span { font-size: 12px; opacity: 0.9; }
+  .grand strong { font-size: 18px; }
+  .notes { border-top: 1px dashed #ccc; padding-top: 8px; margin-top: 10px; font-size: 10.5px; color: #555; }
+  .notes h4 { color: #1a2332; margin-bottom: 4px; font-size: 11.5px; }
+  .notes ul { padding-left: 16px; }
+  .notes li { padding: 1px 0; }
+  .sign-row { display: flex; justify-content: space-around; margin-top: 24px; gap: 30px; page-break-inside: avoid; }
   .sign-box { flex: 1; text-align: center; }
-  .sign-line { border-top: 1px solid #333; margin-bottom: 6px; padding-top: 40px; }
-  .sign-label { font-size: 13px; color: #555; }
+  .sign-line { border-top: 1px solid #333; margin-bottom: 4px; padding-top: 24px; }
+  .sign-label { font-size: 11px; color: #555; }
   .print-bar { position: fixed; top: 10px; right: 10px; background: #ea5b0c; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
   .print-bar:hover { background: #c74900; }
-  @media print { .print-bar { display: none; } body { padding: 0; } }
+  @media print {
+    .print-bar { display: none; }
+    body { padding: 0; }
+    .summary-grid, .cost-breakdown, .grand, .notes, .sign-row, table { page-break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -941,7 +946,7 @@ ${hasCustomer ? `
   <tbody>
     <tr>
       <td>
-        ${thumbDataUrl ? `<img src="${thumbDataUrl}" alt="ชิ้นงาน" style="width:150px; height:112px; object-fit:contain; border:1px solid #e4e8ef; border-radius:6px; background:#fafbfd; display:block; margin-bottom:8px;">` : ''}
+        ${thumbDataUrl ? `<img src="${thumbDataUrl}" alt="ชิ้นงาน" style="width:110px; height:82px; object-fit:contain; border:1px solid #e4e8ef; border-radius:5px; background:#fafbfd; display:block; margin-bottom:5px;">` : ''}
         <strong>งานพิมพ์ 3 มิติ</strong>
         <div class="spec">${state.file ? state.file.name : 'ตามปริมาตรที่ระบุ'}</div>
       </td>
