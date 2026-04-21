@@ -83,7 +83,7 @@ function renderMaterialSelect() {
   MATERIALS[state.process].forEach(m => {
     const opt = document.createElement('option');
     opt.value = m.id;
-    opt.textContent = `${m.name} (฿${m.pricePerGram}/g)`;
+    opt.textContent = m.name;
     sel.appendChild(opt);
   });
   state.material = MATERIALS[state.process][0].id;
