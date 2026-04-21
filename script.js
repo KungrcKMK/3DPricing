@@ -225,24 +225,28 @@ function buildTelegramQuoteText(ctx) {
   // HTML parse mode — escape <>& if user data
   const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const c = state.customer;
-  const hasCustomer = c.name || c.phone || c.email || c.address;
+  const co = state.company;
   const mat = getMaterial();
   const lines = [
     `📋 <b>ใบเสนอราคาใหม่</b>`,
     `🔖 <code>${esc(ctx.quoteNo)}</code>`,
     `📅 ${esc(ctx.dateStr)}`,
+    '',
+    // ---------- ผู้เสนอ (sender / company) ----------
+    `🏢 <b>ผู้เสนอ</b>: ${esc(co.name || '—')}`,
   ];
-  if (state.company.name) {
-    lines.push(`🏢 ${esc(state.company.name)}`);
-  }
+  if (co.addr1) lines.push(`   📍 ${esc(co.addr1)}${co.addr2 ? ' ' + esc(co.addr2) : ''}`);
+  else if (co.addr2) lines.push(`   📍 ${esc(co.addr2)}`);
+  if (co.phone) lines.push(`   📞 ${esc(co.phone)}`);
+  if (co.email) lines.push(`   📧 ${esc(co.email)}`);
+  if (co.taxId) lines.push(`   🆔 ${esc(co.taxId)}`);
   lines.push('');
-  if (hasCustomer) {
-    lines.push(`👤 <b>ลูกค้า</b>: ${esc(c.name || '-')}`);
-    if (c.phone) lines.push(`   📞 ${esc(c.phone)}`);
-    if (c.email) lines.push(`   📧 ${esc(c.email)}`);
-    if (c.address) lines.push(`   📍 ${esc(c.address)}`);
-    lines.push('');
-  }
+  // ---------- ผู้รับใบเสนอราคา (customer) ----------
+  lines.push(`👤 <b>ผู้รับใบเสนอราคา</b>: ${esc(c.name || '—')}`);
+  if (c.phone)   lines.push(`   📞 ${esc(c.phone)}`);
+  if (c.email)   lines.push(`   📧 ${esc(c.email)}`);
+  if (c.address) lines.push(`   📍 ${esc(c.address)}`);
+  lines.push('');
   lines.push(
     `📦 <b>งาน</b>: ${esc(state.file ? state.file.name : 'manual input')}`,
     `🔧 ${esc(state.process)} · ${esc(mat.name)} · สี${esc($('color').value)}`,
