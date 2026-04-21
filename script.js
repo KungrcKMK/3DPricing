@@ -270,52 +270,53 @@ function renderThumbnail(verts, bbox, canvas) {
   const cy = (bbox.minY + bbox.maxY) / 2;
   const cz = (bbox.minZ + bbox.maxZ) / 2;
 
-  // Isometric-ish rotation: 30° around Z, then 30° tilt around X
-  const aZ = 30 * Math.PI / 180;
-  const aX = 30 * Math.PI / 180;
-  const cZ = Math.cos(aZ), sZ = Math.sin(aZ);
-  const cX = Math.cos(aX), sX = Math.sin(aX);
+  // True isometric projection: camera at (1,1,1) looking at origin, Z-up
+  const SQRT3_2 = 0.8660254; // cos(30°)
 
   function project(x, y, z) {
     x -= cx; y -= cy; z -= cz;
-    const x1 = x * cZ - y * sZ;
-    const y1 = x * sZ + y * cZ;
-    const y2 = y1 * cX - z * sX;
-    const z2 = y1 * sX + z * cX;
-    return [x1, -z2, y2]; // sx, sy (flip Y), depth
+    return [
+      (x - y) * SQRT3_2,          // screen X
+      -((x + y) * 0.5 - z),       // screen Y (flip because canvas Y down)
+      x + y + z,                  // depth: larger = farther from camera
+    ];
   }
 
-  // Downsample big meshes
-  const MAX_TRIS = 40000;
+  // Only downsample extremely large meshes (preserve detail for most files)
+  const MAX_TRIS = 250000;
   const step = Math.max(1, Math.floor(triCount / MAX_TRIS));
+
+  // Light direction (to light source), normalized — from camera-side, upper
+  const LX = 0.274, LY = 0.274, LZ = 0.913;
 
   const tris = [];
   let sMinX = Infinity, sMaxX = -Infinity, sMinY = Infinity, sMaxY = -Infinity;
 
   for (let i = 0; i < triCount; i += step) {
     const o = i * 9;
-    const ax = verts[o],   ay = verts[o+1], az = verts[o+2];
-    const bx = verts[o+3], by = verts[o+4], bz = verts[o+5];
+    const ax = verts[o],    ay = verts[o+1],  az = verts[o+2];
+    const bx = verts[o+3],  by = verts[o+4],  bz = verts[o+5];
     const cxv = verts[o+6], cyv = verts[o+7], czv = verts[o+8];
 
-    const A = project(ax, ay, az);
-    const B = project(bx, by, bz);
-    const C = project(cxv, cyv, czv);
-
-    // Normal in model space
+    // Normal in model space (cross product of two edges)
     const ex1 = bx - ax, ey1 = by - ay, ez1 = bz - az;
     const ex2 = cxv - ax, ey2 = cyv - ay, ez2 = czv - az;
     const nx = ey1 * ez2 - ez1 * ey2;
     const ny = ez1 * ex2 - ex1 * ez2;
     const nz = ex1 * ey2 - ey1 * ex2;
-    const nL = Math.hypot(nx, ny, nz) || 1;
-    // Rotate normal same as projection to get camera-space z
-    const nx1 = nx * cZ - ny * sZ;
-    const ny1 = nx * sZ + ny * cZ;
-    const nz2 = ny1 * sX + nz * cX; // camera-space z after X rotation
-    const intensity = Math.max(0.25, Math.abs(nz2 / nL));
 
-    tris.push({ A, B, C, intensity, depth: (A[2]+B[2]+C[2])/3 });
+    // Backface culling — view dir from model to camera ≈ (1,1,1)/√3
+    // Face visible if normal · view > 0 → nx + ny + nz > 0
+    if (nx + ny + nz <= 0) continue;
+
+    const nL = Math.hypot(nx, ny, nz) || 1;
+    const intensity = Math.max(0.28, (nx * LX + ny * LY + nz * LZ) / nL);
+
+    const A = project(ax, ay, az);
+    const B = project(bx, by, bz);
+    const C = project(cxv, cyv, czv);
+
+    tris.push({ A, B, C, intensity, depth: A[2] + B[2] + C[2] });
 
     if (A[0] < sMinX) sMinX = A[0]; if (A[0] > sMaxX) sMaxX = A[0];
     if (B[0] < sMinX) sMinX = B[0]; if (B[0] > sMaxX) sMaxX = B[0];
@@ -325,25 +326,31 @@ function renderThumbnail(verts, bbox, canvas) {
     if (C[1] < sMinY) sMinY = C[1]; if (C[1] > sMaxY) sMaxY = C[1];
   }
 
+  if (tris.length === 0) return;
+
   // Fit to canvas
   const bw = sMaxX - sMinX, bh = sMaxY - sMinY;
-  const scale = Math.min(W / bw, H / bh) * 0.85;
+  const scale = Math.min(W / bw, H / bh) * 0.88;
   const offX = W/2 - (sMinX + sMaxX)/2 * scale;
   const offY = H/2 - (sMinY + sMaxY)/2 * scale;
 
-  // Painter's: back to front
-  tris.sort((p, q) => p.depth - q.depth);
+  // Painter's: farthest first (highest depth) → painted first, near on top
+  tris.sort((p, q) => q.depth - p.depth);
 
-  // Draw
+  // Draw — stroke with same color to fill sub-pixel gaps between tris
   for (const t of tris) {
-    const lightness = Math.floor(25 + 50 * t.intensity);
-    ctx.fillStyle = `hsl(22, 70%, ${lightness}%)`;
+    const lightness = Math.floor(28 + 50 * t.intensity);
+    const color = `hsl(22, 70%, ${lightness}%)`;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
     ctx.moveTo(t.A[0]*scale + offX, t.A[1]*scale + offY);
     ctx.lineTo(t.B[0]*scale + offX, t.B[1]*scale + offY);
     ctx.lineTo(t.C[0]*scale + offX, t.C[1]*scale + offY);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
   }
 }
 
