@@ -121,6 +121,29 @@ function setPriceUI(pricePerG) {
   if (ppk && document.activeElement !== ppk) ppk.value = (pricePerG * 1000).toFixed(0);
 }
 
+// ============= PURCHASE PRICE CALCULATOR =============
+function computeBuyPerGram() {
+  const price = parseFloat($('buyPrice').value);
+  const weight = parseFloat($('buyWeight').value);
+  if (!isFinite(price) || !isFinite(weight) || price <= 0 || weight <= 0) return null;
+  return price / weight;
+}
+function updateBuyCalc() {
+  const perG = computeBuyPerGram();
+  const resultEl = $('buyPerGram');
+  const applyBtn = $('applyBuyPrice');
+  if (!resultEl || !applyBtn) return;
+  if (perG == null) {
+    resultEl.textContent = '—';
+    resultEl.classList.remove('valid');
+    applyBtn.disabled = true;
+  } else {
+    resultEl.textContent = `${perG.toFixed(2)} ฿/g`;
+    resultEl.classList.add('valid');
+    applyBtn.disabled = false;
+  }
+}
+
 // ============= DROP ZONE =============
 function setupDropZone() {
   const dz = $('dropZone');
@@ -500,6 +523,18 @@ function setupForm() {
     setPriceUI(mat.pricePerGram);
     recalc();
   });
+
+  // Purchase-price calculator: ราคาที่ซื้อ ÷ น้ำหนักทั้งหมด = ฿/g
+  $('buyPrice').addEventListener('input', updateBuyCalc);
+  $('buyWeight').addEventListener('input', updateBuyCalc);
+  $('applyBuyPrice').addEventListener('click', () => {
+    const perG = computeBuyPerGram();
+    if (perG == null) return;
+    setPriceUI(perG);
+    saveCustomPrice(state.material, perG);
+    recalc();
+  });
+  updateBuyCalc(); // initial state
   $('layer').addEventListener('change', (e) => {
     state.layer = parseFloat(e.target.value);
     recalc();

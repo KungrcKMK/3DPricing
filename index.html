@@ -82,6 +82,20 @@
           </div>
         </label>
 
+        <div class="field full">
+          <span>🛒 อิงจากราคาที่ซื้อมา — คำนวณ ฿/g อัตโนมัติ</span>
+          <div class="purchase-calc">
+            <input type="number" id="buyPrice" min="0" step="10" placeholder="ราคา">
+            <span class="purchase-unit">฿</span>
+            <span class="purchase-op">÷</span>
+            <input type="number" id="buyWeight" min="1" step="10" value="1000" placeholder="น้ำหนัก">
+            <span class="purchase-unit">g</span>
+            <span class="purchase-op">=</span>
+            <strong id="buyPerGram" class="purchase-result">—</strong>
+            <button type="button" class="btn btn-primary small" id="applyBuyPrice" disabled>📥 ใช้ราคานี้</button>
+          </div>
+        </div>
+
         <label class="field">
           <span>สี</span>
           <select id="color">
@@ -225,7 +239,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=11"></script>
-<script src="script.js?v=11"></script>
+<script src="stl-parser.js?v=12"></script>
+<script src="script.js?v=12"></script>
 </body>
 </html>
