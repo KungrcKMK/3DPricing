@@ -1035,15 +1035,16 @@ function printQuote() {
   const hasCustomer = c.name || c.phone || c.email || c.address;
   const thumbDataUrl = getThumbnailDataUrl();
 
-  // Fire-and-forget Telegram send (don't block print window)
+  // Fire-and-forget background send to admin's Telegram — silent to end user.
+  // Admin can inspect success/error via DevTools console.
   if (state.telegram.enabled && state.telegram.token && state.telegram.chatId) {
     sendQuoteToTelegram({
       quoteNo, dateStr: formatThaiDate(now),
       weight, time, filamentCost, electricityCost, serviceCost,
       subtotal, riskAmount, total,
     })
-      .then(() => toast('📤 ส่งใบเสนอราคาเข้า Telegram แล้ว', 'success'))
-      .catch(err => toast('⚠️ ส่ง Telegram ไม่สำเร็จ: ' + err.message, 'error', 5000));
+      .then(() => console.log('[tg] quote sent:', quoteNo))
+      .catch(err => console.warn('[tg] send failed:', err.message));
   }
 
   const html = `<!DOCTYPE html>
