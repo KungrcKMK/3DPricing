@@ -305,8 +305,9 @@ function resetThumbnailView() {
   }
 }
 
-function drawThumbnail() {
-  const canvas = $('thumbnail');
+function drawThumbnail(opts) {
+  opts = opts || {};
+  const canvas = opts.canvas || $('thumbnail');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
@@ -344,7 +345,7 @@ function drawThumbnail() {
   }
 
   // Downsample heavily during drag for smooth 60fps interaction
-  const MAX_TRIS = dragging ? 25000 : 250000;
+  const MAX_TRIS = (dragging && !opts.forceFullQuality) ? 25000 : 250000;
   const step = Math.max(1, Math.floor(triCount / MAX_TRIS));
 
   // Light in view space — upper-front
@@ -411,13 +412,28 @@ function drawThumbnail() {
     ctx.stroke();
   }
 
-  // Hint overlay (only when idle)
-  if (!dragging) {
+  // Hint overlay (only when idle, and not for offscreen renders like print)
+  if (!dragging && !opts.hideHint) {
     ctx.fillStyle = 'rgba(107, 122, 143, 0.75)';
     ctx.font = '11px "Segoe UI", "Sarabun", sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.fillText('ลากเพื่อหมุน · ดับเบิลคลิก = รีเซ็ต', W - 8, H - 6);
+  }
+}
+
+// Render a hi-res thumbnail to a data URL (for print/PDF)
+function getThumbnailDataUrl() {
+  if (!thumbnailState.verts || !thumbnailState.bbox) return '';
+  const hires = document.createElement('canvas');
+  hires.width = 640;
+  hires.height = 480;
+  try {
+    drawThumbnail({ canvas: hires, forceFullQuality: true, hideHint: true });
+    return hires.toDataURL('image/png');
+  } catch (e) {
+    console.warn('thumbnail capture failed:', e);
+    return '';
   }
 }
 
@@ -577,19 +593,19 @@ function setupForm() {
     recalc();
   });
   $('powerWatt').addEventListener('input', (e) => {
-    state.powerWatt = parseFloat(e.target.value) || 0;
+    state.powerWatt = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
   $('elecRate').addEventListener('input', (e) => {
-    state.elecRate = parseFloat(e.target.value) || 0;
+    state.elecRate = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
   $('machineRate').addEventListener('input', (e) => {
-    state.machineRate = parseFloat(e.target.value) || 0;
+    state.machineRate = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
   $('setupFee').addEventListener('input', (e) => {
-    state.setupFee = parseFloat(e.target.value) || 0;
+    state.setupFee = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
   $('riskPct').addEventListener('input', (e) => {
@@ -606,11 +622,34 @@ function setupForm() {
   });
 
   $('orderBtn').addEventListener('click', () => {
-    if (state.volume <= 0) {
-      alert('กรุณาอัปโหลดไฟล์หรือกรอกปริมาตรก่อน');
+    const check = validateForQuote();
+    if (check.errors.length > 0) {
+      alert('⚠️ ยังสั่งซื้อไม่ได้:\n\n• ' + check.errors.join('\n• '));
       return;
     }
-    alert('ขอบคุณสำหรับออเดอร์! (ยังไม่ได้เชื่อมต่อระบบ payment)');
+    const mat = getMaterial();
+    const weight = calcWeight();
+    const time = calcPrintTime();
+    const summary = [
+      '📋 ตรวจสอบก่อนยืนยันออเดอร์',
+      '',
+      `ไฟล์:     ${state.file ? state.file.name : '(manual input)'}`,
+      `วัสดุ:     ${mat.name} (${state.process})`,
+      `ปริมาตร:  ${state.volume.toFixed(2)} cm³`,
+      `น้ำหนัก:  ${weight.toFixed(1)} g`,
+      `เวลา:     ${time.toFixed(2)} ชม.`,
+      `จำนวน:   ${state.qty} ชิ้น`,
+      '',
+      `ยอดรวม:  ${$('total').textContent}`,
+    ];
+    if (check.warnings.length > 0) {
+      summary.push('', '⚠️  ข้อสังเกต:');
+      check.warnings.forEach(w => summary.push('   • ' + w));
+    }
+    summary.push('', 'ต้องการยืนยันการสั่งซื้อใช่หรือไม่?');
+    if (confirm(summary.join('\n'))) {
+      alert('✅ ขอบคุณสำหรับออเดอร์!\n(ยังไม่ได้เชื่อมต่อระบบ payment)');
+    }
   });
 
   $('copyBtn').addEventListener('click', copyQuote);
@@ -724,10 +763,38 @@ function formatThaiDate(d) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
+function validateForQuote() {
+  const errors = [];
+  const warnings = [];
+
+  if (state.volume <= 0) errors.push('ยังไม่ได้กรอก/อัปโหลดปริมาตรชิ้นงาน');
+  const weight = calcWeight();
+  const time = calcPrintTime();
+  if (weight <= 0) errors.push('น้ำหนัก = 0 (เช็ค volume / density / infill)');
+  if (time <= 0) errors.push('เวลาพิมพ์ = 0');
+  if (state.qty < 1) errors.push('จำนวนต้องอย่างน้อย 1 ชิ้น');
+
+  if (state.pricePerGram <= 0) warnings.push('ราคาวัสดุ ฿0/g → ค่าวัสดุเป็น 0');
+  if (state.powerWatt <= 0 || state.elecRate <= 0) warnings.push('กำลังไฟ/ค่าไฟ = 0 → ค่าไฟเป็น 0');
+  if (state.machineRate <= 0) warnings.push('ค่าเครื่อง ฿0/ชม. → ไม่มีการคืนทุนเครื่อง');
+  if (state.setupFee < 0) warnings.push('ค่า Setup ติดลบ');
+  if (state.riskPct > 30) warnings.push(`ค่าความเสี่ยง ${state.riskPct}% สูงผิดปกติ`);
+
+  return { errors, warnings };
+}
+
 function printQuote() {
-  if (state.volume <= 0) {
-    alert('กรุณาอัปโหลดไฟล์หรือกรอกปริมาตรก่อน');
+  const check = validateForQuote();
+  if (check.errors.length > 0) {
+    alert('⚠️ ยังสร้างใบเสนอราคาไม่ได้:\n\n• ' + check.errors.join('\n• '));
     return;
+  }
+  if (check.warnings.length > 0) {
+    const proceed = confirm(
+      '⚠️ พบข้อสังเกต:\n\n• ' + check.warnings.join('\n• ') +
+      '\n\nต้องการสร้างใบเสนอราคาต่อไปหรือไม่?'
+    );
+    if (!proceed) return;
   }
 
   const mat = getMaterial();
@@ -750,6 +817,7 @@ function printQuote() {
 
   const c = state.customer;
   const hasCustomer = c.name || c.phone || c.email || c.address;
+  const thumbDataUrl = getThumbnailDataUrl();
 
   const html = `<!DOCTYPE html>
 <html lang="th">
@@ -853,6 +921,7 @@ ${hasCustomer ? `
   <tbody>
     <tr>
       <td>
+        ${thumbDataUrl ? `<img src="${thumbDataUrl}" alt="ชิ้นงาน" style="width:150px; height:112px; object-fit:contain; border:1px solid #e4e8ef; border-radius:6px; background:#fafbfd; display:block; margin-bottom:8px;">` : ''}
         <strong>งานพิมพ์ 3 มิติ</strong>
         <div class="spec">${state.file ? state.file.name : 'ตามปริมาตรที่ระบุ'}</div>
       </td>
