@@ -23,8 +23,7 @@ const MATERIALS = {
 const SHELL_VOLUME_RATIO = 0.15; // outer shell is always printed ~100%, about 15% of total
 const DEFAULT_POWER = { FDM: 150, SLA: 80, SLS: 2000 }; // watt
 const DEFAULT_ELEC_RATE = 4.5;   // ฿/kWh
-const DEFAULT_MACHINE_RATE = 15; // ฿/hr — depreciation + maintenance (คืนทุนเครื่อง)
-const DEFAULT_SETUP_FEE = 50;    // ฿/order — one-time setup & file prep
+const DEFAULT_SERVICE_RATE = 30; // ฿/hr — all-in overhead: depreciation + setup prep + maintenance
 const DEFAULT_RISK_PCT = 0;      // % markup for difficult prints
 const STORAGE_KEY_PRICES = '3dpricing:customPrices';
 
@@ -42,8 +41,7 @@ let state = {
   qty: 1,
   powerWatt: DEFAULT_POWER.FDM,
   elecRate: DEFAULT_ELEC_RATE,
-  machineRate: DEFAULT_MACHINE_RATE,
-  setupFee: DEFAULT_SETUP_FEE,
+  serviceRate: DEFAULT_SERVICE_RATE,
   riskPct: DEFAULT_RISK_PCT,
   file: null,
   bbox: null,
@@ -595,12 +593,8 @@ function setupForm() {
     state.elecRate = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
-  $('machineRate').addEventListener('input', (e) => {
-    state.machineRate = Math.max(0, parseFloat(e.target.value) || 0);
-    recalc();
-  });
-  $('setupFee').addEventListener('input', (e) => {
-    state.setupFee = Math.max(0, parseFloat(e.target.value) || 0);
+  $('serviceRate').addEventListener('input', (e) => {
+    state.serviceRate = Math.max(0, parseFloat(e.target.value) || 0);
     recalc();
   });
   $('riskPct').addEventListener('input', (e) => {
@@ -681,11 +675,10 @@ function recalc() {
   // Per-piece base costs
   const filamentCost = weight * state.pricePerGram;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
-  const machineCost = time * state.machineRate;
+  const serviceCost = time * state.serviceRate;
 
-  const perPieceBase = filamentCost + electricityCost + machineCost;
-  const allPieces = perPieceBase * state.qty;
-  const subtotal = allPieces + state.setupFee;            // setup added once per order
+  const perPieceBase = filamentCost + electricityCost + serviceCost;
+  const subtotal = perPieceBase * state.qty;
   const riskAmount = subtotal * (state.riskPct / 100);
   const total = subtotal + riskAmount;
 
@@ -696,8 +689,7 @@ function recalc() {
 
   $('costFilament').textContent = fmt(filamentCost * state.qty);
   $('costElectricity').textContent = fmt(electricityCost * state.qty);
-  $('costMachine').textContent = fmt(machineCost * state.qty);
-  $('costSetup').textContent = fmt(state.setupFee);
+  $('costService').textContent = fmt(serviceCost * state.qty);
   $('subtotal').textContent = fmt(subtotal);
   $('costRisk').textContent = fmt(riskAmount);
   $('riskLabel').textContent = state.riskPct;
@@ -726,13 +718,12 @@ function copyQuote() {
     `เวลาพิมพ์: ${time.toFixed(2)} ชม.`,
     `Infill: ${state.infill}% · Layer: ${state.layer}mm`,
     `กำลังไฟ: ${state.powerWatt} W · ค่าไฟ: ฿${state.elecRate}/kWh`,
-    `ค่าเครื่อง: ฿${state.machineRate}/ชม. · Setup: ฿${state.setupFee}${state.riskPct > 0 ? ' · Risk: ' + state.riskPct + '%' : ''}`,
+    `ค่าบริการเครื่อง: ฿${state.serviceRate}/ชม.${state.riskPct > 0 ? ' · Risk: ' + state.riskPct + '%' : ''}`,
     `จำนวน: ${state.qty} ชิ้น`,
     '',
     `ค่าวัสดุ: ${$('costFilament').textContent}`,
     `ค่าไฟฟ้า: ${$('costElectricity').textContent}`,
-    `ค่าเครื่อง: ${$('costMachine').textContent}`,
-    `ค่า Setup: ${$('costSetup').textContent}`,
+    `ค่าบริการเครื่อง: ${$('costService').textContent}`,
     `ยอดรวม: ${$('subtotal').textContent}`,
     (state.riskPct > 0 ? `ค่าความเสี่ยง (${state.riskPct}%): ${$('costRisk').textContent}` : null),
     `รวมทั้งสิ้น: ${$('total').textContent}`,
@@ -771,8 +762,7 @@ function validateForQuote() {
 
   if (state.pricePerGram <= 0) warnings.push('ราคาวัสดุ ฿0/g → ค่าวัสดุเป็น 0');
   if (state.powerWatt <= 0 || state.elecRate <= 0) warnings.push('กำลังไฟ/ค่าไฟ = 0 → ค่าไฟเป็น 0');
-  if (state.machineRate <= 0) warnings.push('ค่าเครื่อง ฿0/ชม. → ไม่มีการคืนทุนเครื่อง');
-  if (state.setupFee < 0) warnings.push('ค่า Setup ติดลบ');
+  if (state.serviceRate <= 0) warnings.push('ค่าบริการเครื่อง ฿0/ชม. → ไม่มีการคืนทุนเครื่อง');
   if (state.riskPct > 30) warnings.push(`ค่าความเสี่ยง ${state.riskPct}% สูงผิดปกติ`);
 
   return { errors, warnings };
@@ -797,10 +787,9 @@ function printQuote() {
   const time = calcPrintTime();
   const filamentCost = weight * state.pricePerGram;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
-  const machineCost = time * state.machineRate;
-  const perPieceBase = filamentCost + electricityCost + machineCost;
-  const allPieces = perPieceBase * state.qty;
-  const subtotal = allPieces + state.setupFee;
+  const serviceCost = time * state.serviceRate;
+  const perPieceBase = filamentCost + electricityCost + serviceCost;
+  const subtotal = perPieceBase * state.qty;
   const riskAmount = subtotal * (state.riskPct / 100);
   const total = subtotal + riskAmount;
   const perPieceDisplay = state.qty > 0 ? total / state.qty : 0;
@@ -938,10 +927,9 @@ ${hasCustomer ? `
     <h4>รายละเอียดต้นทุน</h4>
     <div class="cb-row"><span>1. ค่าวัสดุ (${weight.toFixed(1)}g × ฿${state.pricePerGram}/g × ${state.qty})</span><span>${fmt(filamentCost * state.qty)}</span></div>
     <div class="cb-row"><span>2. ค่าไฟฟ้า (${state.powerWatt}W × ${time.toFixed(2)}ชม. × ฿${state.elecRate}/kWh × ${state.qty})</span><span>${fmt(electricityCost * state.qty)}</span></div>
-    <div class="cb-row"><span>3. ค่าเครื่อง Fixed (${time.toFixed(2)}ชม. × ฿${state.machineRate}/ชม. × ${state.qty})</span><span>${fmt(machineCost * state.qty)}</span></div>
-    <div class="cb-row"><span>4. ค่า Setup (ครั้งเดียว/ออเดอร์)</span><span>${fmt(state.setupFee)}</span></div>
+    <div class="cb-row"><span>3. ค่าบริการเครื่อง (${time.toFixed(2)}ชม. × ฿${state.serviceRate}/ชม. × ${state.qty})</span><span>${fmt(serviceCost * state.qty)}</span></div>
     <div class="cb-row" style="border-top:1px dashed #ccc; padding-top:6px; margin-top:4px; font-weight:600;"><span>ยอดรวม</span><span>${fmt(subtotal)}</span></div>
-    ${state.riskPct > 0 ? `<div class="cb-row"><span>5. ค่าความเสี่ยง (${state.riskPct}%)</span><span>${fmt(riskAmount)}</span></div>` : ''}
+    ${state.riskPct > 0 ? `<div class="cb-row"><span>4. ค่าความเสี่ยง (${state.riskPct}%)</span><span>${fmt(riskAmount)}</span></div>` : ''}
   </div>
   <div class="grand">
     <span>รวมทั้งสิ้น</span>

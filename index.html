@@ -154,13 +154,8 @@
         </label>
 
         <label class="field">
-          <span>ค่าเครื่อง Fixed (฿/ชม.)</span>
-          <input type="number" id="machineRate" min="0" step="1" value="15" title="ค่าคืนทุนเครื่อง + ซ่อมบำรุง (แนะนำ 10–30 ฿/ชม.)">
-        </label>
-
-        <label class="field">
-          <span>ค่า Setup (฿/ออเดอร์)</span>
-          <input type="number" id="setupFee" min="0" step="10" value="50" title="ค่าเตรียมไฟล์ + จัดการชิ้นงาน คิดครั้งเดียวต่อออเดอร์">
+          <span>ค่าบริการเครื่อง (฿/ชม.)</span>
+          <input type="number" id="serviceRate" min="0" step="1" value="30" title="ค่าคืนทุนเครื่อง + เตรียมงาน + ซ่อมบำรุง คิดตามเวลาพิมพ์ (แนะนำ 25–50 ฿/ชม.)">
         </label>
 
         <label class="field full">
@@ -205,10 +200,9 @@
       <div class="breakdown">
         <div class="bd-row"><span>1. ค่าวัสดุ</span><span id="costFilament">฿0</span></div>
         <div class="bd-row"><span>2. ค่าไฟฟ้า</span><span id="costElectricity">฿0</span></div>
-        <div class="bd-row"><span>3. ค่าเครื่อง (Fixed)</span><span id="costMachine">฿0</span></div>
-        <div class="bd-row"><span>4. ค่า Setup</span><span id="costSetup">฿0</span></div>
+        <div class="bd-row"><span>3. ค่าบริการเครื่อง</span><span id="costService">฿0</span></div>
         <div class="bd-row subtotal"><span>ยอดรวม</span><span id="subtotal">฿0</span></div>
-        <div class="bd-row"><span>5. ค่าความเสี่ยง (<span id="riskLabel">0</span>%)</span><span id="costRisk">฿0</span></div>
+        <div class="bd-row"><span>4. ค่าความเสี่ยง (<span id="riskLabel">0</span>%)</span><span id="costRisk">฿0</span></div>
       </div>
 
       <div class="grand-total">
@@ -232,7 +226,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=14"></script>
-<script src="script.js?v=14"></script>
+<script src="stl-parser.js?v=15"></script>
+<script src="script.js?v=15"></script>
 </body>
 </html>
