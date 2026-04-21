@@ -207,6 +207,7 @@ body {
   -webkit-user-select: none;
 }
 .file-info.hidden { display: none; }
+.bd-row.hidden { display: none; }
 .file-row {
   display: flex;
   justify-content: space-between;
@@ -369,6 +370,15 @@ body {
   font-size: 14px;
 }
 .summary-row strong { color: var(--dark); }
+.summary-detail { padding-top: 0 !important; }
+.weight-detail {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  text-align: right;
+}
+
+.bd-row.min-charge span { color: var(--primary) !important; font-weight: 600; }
 
 .breakdown {
   border-top: 1px solid var(--border);

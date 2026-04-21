@@ -20,15 +20,22 @@ const MATERIALS = {
 };
 
 // ============= PRICING PARAMS =============
-const SHELL_VOLUME_RATIO = 0.15; // outer shell is always printed ~100%, about 15% of total
+const SHELL_VOLUME_RATIO_FALLBACK = 0.15; // used when bbox unknown
 const DEFAULT_POWER = { FDM: 150, SLA: 80, SLS: 2000 }; // watt
-const DEFAULT_ELEC_RATE = 4.5;   // ฿/kWh
-const DEFAULT_SERVICE_RATE = 30; // ฿/hr — all-in overhead: depreciation + setup prep + maintenance
-const DEFAULT_RISK_PCT = 0;      // % markup for difficult prints
-const STORAGE_KEY_PRICES = '3dpricing:customPrices';
+const DEFAULT_ELEC_RATE = 4.5;       // ฿/kWh
+const DEFAULT_SERVICE_RATE = 30;     // ฿/hr — all-in overhead: depreciation + setup prep + maintenance
+const DEFAULT_RISK_PCT = 0;          // % markup for difficult prints
 
+// v2 additions
+const DEFAULT_WALL_THICKNESS = 1.2;  // mm — approx 3 perimeters @ 0.4mm nozzle
+const DEFAULT_WASTE_PCT = 3;         // % — purge/skirt/priming waste
+const DEFAULT_POST_RATE = 200;       // ฿/hr — post-processing labour rate
+const DEFAULT_MIN_CHARGE = 50;       // ฿ — minimum order floor
+
+const STORAGE_KEY_PRICES = '3dpricing:customPrices';
 const COMPANY_STORAGE_KEY = '3dpricing.company';
 const TELEGRAM_STORAGE_KEY = '3dpricing.telegram';
+const ADVANCED_STORAGE_KEY = '3dpricing.advanced'; // persists shop-level config
 
 // ============= TELEGRAM DEFAULTS (hardcoded) =============
 // NOTE: Token is visible to anyone with access to this public repo.
@@ -55,6 +62,16 @@ let state = {
   elecRate: DEFAULT_ELEC_RATE,
   serviceRate: DEFAULT_SERVICE_RATE,
   riskPct: DEFAULT_RISK_PCT,
+  // ---------- v2 additions ----------
+  // Job-specific (not persisted — reset each session)
+  supportPct: 0,                       // % of model volume used for support structures
+  postMin: 0,                          // minutes/piece of post-processing
+  // Shop-level config (persisted via ADVANCED_STORAGE_KEY)
+  wastePct: DEFAULT_WASTE_PCT,
+  postRate: DEFAULT_POST_RATE,
+  minCharge: DEFAULT_MIN_CHARGE,
+  wallThickness: DEFAULT_WALL_THICKNESS,
+  // ---------- end v2 additions ----------
   file: null,
   bbox: null,
   customer: { name: '', phone: '', email: '', address: '' },
@@ -69,6 +86,7 @@ const $ = (id) => document.getElementById(id);
 document.addEventListener('DOMContentLoaded', () => {
   renderMaterialSelect();
   setupDropZone();
+  loadAdvanced();         // restore persisted shop config BEFORE setupForm so inputs show correct value
   setupForm();
   setupHardReload();
   setupThumbnailControls();
@@ -78,6 +96,39 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTelegramForm();
   recalc();
 });
+
+// Advanced (shop-level) config persistence — wastePct, postRate, minCharge, wallThickness
+function loadAdvanced() {
+  try {
+    const raw = localStorage.getItem(ADVANCED_STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) || {};
+      if (isFinite(saved.wastePct))      state.wastePct = saved.wastePct;
+      if (isFinite(saved.postRate))      state.postRate = saved.postRate;
+      if (isFinite(saved.minCharge))     state.minCharge = saved.minCharge;
+      if (isFinite(saved.wallThickness)) state.wallThickness = saved.wallThickness;
+    }
+  } catch (err) { /* corrupted storage — ignore, defaults used */ }
+  // Push values into inputs (guard against missing DOM on load order quirks)
+  const set = (id, v) => { const el = $(id); if (el) el.value = v; };
+  set('wastePct', state.wastePct);
+  set('wasteVal', state.wastePct); // span inside range-val
+  const wasteLbl = $('wasteVal'); if (wasteLbl) wasteLbl.textContent = state.wastePct;
+  set('postRate', state.postRate);
+  set('minCharge', state.minCharge);
+  set('wallThickness', state.wallThickness);
+}
+
+function saveAdvanced() {
+  try {
+    localStorage.setItem(ADVANCED_STORAGE_KEY, JSON.stringify({
+      wastePct: state.wastePct,
+      postRate: state.postRate,
+      minCharge: state.minCharge,
+      wallThickness: state.wallThickness,
+    }));
+  } catch (err) { /* storage full — ignore */ }
+}
 
 function loadCompany() {
   try {
@@ -255,6 +306,14 @@ function buildTelegramQuoteText(ctx) {
   if (state.bbox) {
     lines.push(`📏 ขนาด ${state.bbox.x.toFixed(1)}×${state.bbox.y.toFixed(1)}×${state.bbox.z.toFixed(1)} mm`);
   }
+  // Material detail line
+  const b = ctx.breakdown;
+  if (b) {
+    const parts = [`shell ${(b.shellRatio*100).toFixed(0)}%`, `infill ${state.infill}%`];
+    if (state.supportPct > 0) parts.push(`support ${state.supportPct}%`);
+    if (state.wastePct > 0)   parts.push(`waste ${state.wastePct}%`);
+    lines.push(`🧱 ${parts.join(' · ')}`);
+  }
   lines.push(
     `⚖️ น้ำหนัก ${ctx.weight.toFixed(1)} g · ⏱ ${ctx.time.toFixed(2)} ชม.`,
     `📊 จำนวน <b>${state.qty}</b> ชิ้น`,
@@ -263,11 +322,19 @@ function buildTelegramQuoteText(ctx) {
     `   • ค่าวัสดุ: ${fmt(ctx.filamentCost * state.qty)}`,
     `   • ค่าไฟ: ${fmt(ctx.electricityCost * state.qty)}`,
     `   • ค่าบริการเครื่อง: ${fmt(ctx.serviceCost * state.qty)}`,
+  );
+  if (ctx.postCost > 0) {
+    lines.push(`   • ค่าแต่งงาน (${state.postMin} นาที × ${state.qty}): ${fmt(ctx.postCost * state.qty)}`);
+  }
+  lines.push(
     `   ─────────`,
     `   ยอดรวม: ${fmt(ctx.subtotal)}`,
   );
   if (state.riskPct > 0) {
     lines.push(`   • ค่าความเสี่ยง (${state.riskPct}%): ${fmt(ctx.riskAmount)}`);
+  }
+  if (ctx.minBump > 0) {
+    lines.push(`   • ปรับขั้นต่ำ: +${fmt(ctx.minBump)}`);
   }
   lines.push('', `💵 <b>รวมทั้งสิ้น: ${fmt(ctx.total)}</b>`);
   return lines.join('\n');
@@ -839,6 +906,57 @@ function setupForm() {
     recalc();
   });
 
+  // ---------- v2 advanced fields ----------
+  const supportEl = $('supportPct');
+  if (supportEl) {
+    supportEl.addEventListener('input', (e) => {
+      state.supportPct = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+      const lbl = $('supportVal'); if (lbl) lbl.textContent = state.supportPct;
+      recalc();
+    });
+  }
+  const wasteEl = $('wastePct');
+  if (wasteEl) {
+    wasteEl.addEventListener('input', (e) => {
+      state.wastePct = Math.max(0, Math.min(50, parseFloat(e.target.value) || 0));
+      const lbl = $('wasteVal'); if (lbl) lbl.textContent = state.wastePct;
+      saveAdvanced();
+      recalc();
+    });
+  }
+  const postMinEl = $('postMin');
+  if (postMinEl) {
+    postMinEl.addEventListener('input', (e) => {
+      state.postMin = Math.max(0, parseFloat(e.target.value) || 0);
+      recalc();
+    });
+  }
+  const postRateEl = $('postRate');
+  if (postRateEl) {
+    postRateEl.addEventListener('input', (e) => {
+      state.postRate = Math.max(0, parseFloat(e.target.value) || 0);
+      saveAdvanced();
+      recalc();
+    });
+  }
+  const minChargeEl = $('minCharge');
+  if (minChargeEl) {
+    minChargeEl.addEventListener('input', (e) => {
+      state.minCharge = Math.max(0, parseFloat(e.target.value) || 0);
+      saveAdvanced();
+      recalc();
+    });
+  }
+  const wallEl = $('wallThickness');
+  if (wallEl) {
+    wallEl.addEventListener('input', (e) => {
+      state.wallThickness = Math.max(0.1, parseFloat(e.target.value) || DEFAULT_WALL_THICKNESS);
+      saveAdvanced();
+      recalc();
+    });
+  }
+  // ---------- end v2 advanced fields ----------
+
   ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach(id => {
     $(id).addEventListener('input', (e) => {
       const key = id.replace('cust', '').toLowerCase();
@@ -886,12 +1004,46 @@ function getMaterial() {
   return MATERIALS[state.process].find(m => m.id === state.material) || MATERIALS[state.process][0];
 }
 
+// Dynamic shell ratio based on bounding-box surface area.
+// Smaller parts get higher shell ratio (nearly solid) — larger parts get lower.
+// Falls back to 15% when bbox is unavailable (manual volume input).
+function calcShellRatio() {
+  const b = state.bbox;
+  if (!b || !isFinite(b.x) || !isFinite(b.y) || !isFinite(b.z) || state.volume <= 0) {
+    return SHELL_VOLUME_RATIO_FALLBACK;
+  }
+  const wall = Math.max(0.1, state.wallThickness || DEFAULT_WALL_THICKNESS);
+  const surfaceMm2 = 2 * (b.x * b.y + b.y * b.z + b.x * b.z);
+  const volMm3 = state.volume * 1000; // cm³ → mm³
+  const ratio = (wall * surfaceMm2) / volMm3;
+  return Math.min(1, Math.max(0.05, ratio));
+}
+
+// Returns detailed material-volume breakdown (cm³) for a single piece.
+function calcMaterialBreakdown() {
+  if (state.volume <= 0) {
+    return { shellRatio: 0, shell: 0, infill: 0, model: 0, support: 0, waste: 0, total: 0 };
+  }
+  const shellRatio = calcShellRatio();
+  const infillFrac = state.infill / 100;
+  const V = state.volume;
+  // Model = shell (100% solid) + interior filled at infill %
+  const model = V * (shellRatio + (1 - shellRatio) * infillFrac);
+  const support = V * ((state.supportPct || 0) / 100);
+  const waste = (model + support) * ((state.wastePct || 0) / 100);
+  const total = model + support + waste;
+  return {
+    shellRatio,
+    shell: V * shellRatio,
+    infill: V * (1 - shellRatio) * infillFrac,
+    model, support, waste, total,
+  };
+}
+
 function calcWeight() {
   if (state.volume <= 0) return 0;
   const mat = getMaterial();
-  // Effective volume = shell + infill-filled interior
-  const effectiveVolume = state.volume * (SHELL_VOLUME_RATIO + (1 - SHELL_VOLUME_RATIO) * (state.infill / 100));
-  return effectiveVolume * mat.density;
+  return calcMaterialBreakdown().total * mat.density;
 }
 
 function calcPrintTime() {
@@ -904,33 +1056,97 @@ function calcPrintTime() {
   return weight / baseRate * layerFactor;
 }
 
-function recalc() {
+// Returns the full per-piece + final total breakdown.
+// This is the canonical pricing pipeline — UI + Telegram + print quote all consume this.
+function calcQuote() {
   const weight = calcWeight();
   const time = calcPrintTime();
+  const breakdown = calcMaterialBreakdown();
 
-  // Per-piece base costs
+  // Per-piece costs
   const filamentCost = weight * state.pricePerGram;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
   const serviceCost = time * state.serviceRate;
+  const postCost = ((state.postMin || 0) / 60) * (state.postRate || 0);
 
-  const perPieceBase = filamentCost + electricityCost + serviceCost;
+  const perPieceBase = filamentCost + electricityCost + serviceCost + postCost;
   const subtotal = perPieceBase * state.qty;
   const riskAmount = subtotal * (state.riskPct / 100);
-  const total = subtotal + riskAmount;
+  const preMinTotal = subtotal + riskAmount;
 
-  // Update UI
-  $('outWeight').textContent = `${weight.toFixed(1)} g`;
-  $('outTime').textContent = `${time.toFixed(2)} ชม.`;
+  // Minimum-charge floor
+  const minCharge = Math.max(0, state.minCharge || 0);
+  const minBump = preMinTotal > 0 && preMinTotal < minCharge ? minCharge - preMinTotal : 0;
+  const total = preMinTotal + minBump;
+  const perPieceDisplay = state.qty > 0 ? total / state.qty : 0;
+
+  return {
+    weight, time, breakdown,
+    filamentCost, electricityCost, serviceCost, postCost,
+    perPieceBase, subtotal, riskAmount,
+    preMinTotal, minCharge, minBump,
+    total, perPieceDisplay,
+  };
+}
+
+function recalc() {
+  const q = calcQuote();
+
+  // Summary
+  $('outWeight').textContent = `${q.weight.toFixed(1)} g`;
+  $('outTime').textContent = `${q.time.toFixed(2)} ชม.`;
   $('outQty').textContent = `${state.qty} ชิ้น`;
 
-  $('costFilament').textContent = fmt(filamentCost * state.qty);
-  $('costElectricity').textContent = fmt(electricityCost * state.qty);
-  $('costService').textContent = fmt(serviceCost * state.qty);
-  $('subtotal').textContent = fmt(subtotal);
-  $('costRisk').textContent = fmt(riskAmount);
+  // Material detail sub-line
+  const detail = $('weightDetail');
+  if (detail) {
+    if (q.weight > 0) {
+      const b = q.breakdown;
+      const parts = [
+        `shell ${(b.shellRatio * 100).toFixed(0)}%`,
+        `infill ${state.infill}%`,
+      ];
+      if (state.supportPct > 0) parts.push(`support ${state.supportPct}%`);
+      if (state.wastePct > 0)   parts.push(`waste ${state.wastePct}%`);
+      detail.textContent = parts.join(' · ');
+    } else {
+      detail.textContent = '';
+    }
+  }
+
+  // Cost breakdown rows
+  $('costFilament').textContent = fmt(q.filamentCost * state.qty);
+  $('costElectricity').textContent = fmt(q.electricityCost * state.qty);
+  $('costService').textContent = fmt(q.serviceCost * state.qty);
+
+  // Post-processing row — hide if zero
+  const postRow = $('costPostRow');
+  if (postRow) {
+    if (q.postCost > 0) {
+      postRow.classList.remove('hidden');
+      $('costPost').textContent = fmt(q.postCost * state.qty);
+    } else {
+      postRow.classList.add('hidden');
+    }
+  }
+
+  $('subtotal').textContent = fmt(q.subtotal);
+  $('costRisk').textContent = fmt(q.riskAmount);
   $('riskLabel').textContent = state.riskPct;
   $('riskVal').textContent = state.riskPct;
-  $('total').textContent = fmt(total);
+
+  // Min-charge row — show only when it kicks in
+  const minRow = $('costMinRow');
+  if (minRow) {
+    if (q.minBump > 0) {
+      minRow.classList.remove('hidden');
+      $('costMinBump').textContent = '+' + fmt(q.minBump);
+    } else {
+      minRow.classList.add('hidden');
+    }
+  }
+
+  $('total').textContent = fmt(q.total);
 }
 
 function fmt(n) {
@@ -939,30 +1155,29 @@ function fmt(n) {
 
 function copyQuote() {
   const mat = getMaterial();
-  const weight = calcWeight();
-  const time = calcPrintTime();
-  const riskLine = state.riskPct > 0
-    ? `ค่าความเสี่ยง (${state.riskPct}%): ${$('costRisk').textContent}\n`
-    : '';
+  const q = calcQuote();
+  const b = q.breakdown;
   const lines = [
     '=== ใบเสนอราคา 3D Printing ===',
     `ไฟล์: ${state.file ? state.file.name : '(manual input)'}`,
     `เทคโนโลยี: ${state.process}`,
     `วัสดุ: ${mat.name}`,
     `ปริมาตร: ${state.volume.toFixed(2)} cm³${state.scale !== 100 ? ' (สเกล ' + state.scale + '%)' : ''}`,
-    `น้ำหนัก: ${weight.toFixed(1)} g`,
-    `เวลาพิมพ์: ${time.toFixed(2)} ชม.`,
+    `น้ำหนัก: ${q.weight.toFixed(1)} g  (shell ${(b.shellRatio*100).toFixed(0)}% · infill ${state.infill}%${state.supportPct>0?' · support '+state.supportPct+'%':''}${state.wastePct>0?' · waste '+state.wastePct+'%':''})`,
+    `เวลาพิมพ์: ${q.time.toFixed(2)} ชม.`,
     `Infill: ${state.infill}% · Layer: ${state.layer}mm`,
     `กำลังไฟ: ${state.powerWatt} W · ค่าไฟ: ฿${state.elecRate}/kWh`,
     `ค่าบริการเครื่อง: ฿${state.serviceRate}/ชม.${state.riskPct > 0 ? ' · Risk: ' + state.riskPct + '%' : ''}`,
     `จำนวน: ${state.qty} ชิ้น`,
     '',
-    `ค่าวัสดุ: ${$('costFilament').textContent}`,
-    `ค่าไฟฟ้า: ${$('costElectricity').textContent}`,
-    `ค่าบริการเครื่อง: ${$('costService').textContent}`,
-    `ยอดรวม: ${$('subtotal').textContent}`,
-    (state.riskPct > 0 ? `ค่าความเสี่ยง (${state.riskPct}%): ${$('costRisk').textContent}` : null),
-    `รวมทั้งสิ้น: ${$('total').textContent}`,
+    `ค่าวัสดุ: ${fmt(q.filamentCost * state.qty)}`,
+    `ค่าไฟฟ้า: ${fmt(q.electricityCost * state.qty)}`,
+    `ค่าบริการเครื่อง: ${fmt(q.serviceCost * state.qty)}`,
+    (q.postCost > 0 ? `ค่าแต่งงาน (${state.postMin} นาที × ${state.qty} × ฿${state.postRate}/ชม.): ${fmt(q.postCost * state.qty)}` : null),
+    `ยอดรวม: ${fmt(q.subtotal)}`,
+    (state.riskPct > 0 ? `ค่าความเสี่ยง (${state.riskPct}%): ${fmt(q.riskAmount)}` : null),
+    (q.minBump > 0 ? `ปรับขั้นต่ำ: +${fmt(q.minBump)}` : null),
+    `รวมทั้งสิ้น: ${fmt(q.total)}`,
   ].filter(Boolean).join('\n');
   navigator.clipboard.writeText(lines)
     .then(() => alert('คัดลอกใบเสนอราคาแล้ว'))
@@ -1019,16 +1234,9 @@ function printQuote() {
   }
 
   const mat = getMaterial();
-  const weight = calcWeight();
-  const time = calcPrintTime();
-  const filamentCost = weight * state.pricePerGram;
-  const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
-  const serviceCost = time * state.serviceRate;
-  const perPieceBase = filamentCost + electricityCost + serviceCost;
-  const subtotal = perPieceBase * state.qty;
-  const riskAmount = subtotal * (state.riskPct / 100);
-  const total = subtotal + riskAmount;
-  const perPieceDisplay = state.qty > 0 ? total / state.qty : 0;
+  const q = calcQuote();
+  const { weight, time, filamentCost, electricityCost, serviceCost, postCost,
+          subtotal, riskAmount, minBump, total, perPieceDisplay, breakdown } = q;
 
   const now = new Date();
   const validUntil = new Date(now);
@@ -1044,8 +1252,8 @@ function printQuote() {
   if (state.telegram.enabled && state.telegram.token && state.telegram.chatId) {
     sendQuoteToTelegram({
       quoteNo, dateStr: formatThaiDate(now),
-      weight, time, filamentCost, electricityCost, serviceCost,
-      subtotal, riskAmount, total,
+      weight, time, filamentCost, electricityCost, serviceCost, postCost,
+      subtotal, riskAmount, minBump, total, breakdown,
     })
       .then(() => console.log('[tg] quote sent:', quoteNo))
       .catch(err => console.warn('[tg] send failed:', err.message));
@@ -1183,8 +1391,10 @@ ${hasCustomer ? `
     <div class="cb-row"><span>1. ค่าวัสดุ (${weight.toFixed(1)}g × ฿${state.pricePerGram}/g × ${state.qty})</span><span>${fmt(filamentCost * state.qty)}</span></div>
     <div class="cb-row"><span>2. ค่าไฟฟ้า (${state.powerWatt}W × ${time.toFixed(2)}ชม. × ฿${state.elecRate}/kWh × ${state.qty})</span><span>${fmt(electricityCost * state.qty)}</span></div>
     <div class="cb-row"><span>3. ค่าบริการเครื่อง (${time.toFixed(2)}ชม. × ฿${state.serviceRate}/ชม. × ${state.qty})</span><span>${fmt(serviceCost * state.qty)}</span></div>
+    ${postCost > 0 ? `<div class="cb-row"><span>4. ค่าแต่งงาน (${state.postMin} นาที × ฿${state.postRate}/ชม. × ${state.qty})</span><span>${fmt(postCost * state.qty)}</span></div>` : ''}
     <div class="cb-row" style="border-top:1px dashed #ccc; padding-top:6px; margin-top:4px; font-weight:600;"><span>ยอดรวม</span><span>${fmt(subtotal)}</span></div>
-    ${state.riskPct > 0 ? `<div class="cb-row"><span>4. ค่าความเสี่ยง (${state.riskPct}%)</span><span>${fmt(riskAmount)}</span></div>` : ''}
+    ${state.riskPct > 0 ? `<div class="cb-row"><span>${postCost > 0 ? 5 : 4}. ค่าความเสี่ยง (${state.riskPct}%)</span><span>${fmt(riskAmount)}</span></div>` : ''}
+    ${minBump > 0 ? `<div class="cb-row" style="color:#c74900;"><span>ปรับขั้นต่ำ (฿${state.minCharge})</span><span>+${fmt(minBump)}</span></div>` : ''}
   </div>
   <div class="grand">
     <span>รวมทั้งสิ้น</span>

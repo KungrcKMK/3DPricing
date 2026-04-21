@@ -166,6 +166,47 @@
         </label>
       </div>
 
+      <details class="company-details advanced-details">
+        <summary>🔬 ค่าปรับแต่งขั้นสูง — Support / Waste / Post-Processing / ขั้นต่ำ</summary>
+        <div class="form-grid" style="margin-top:14px;">
+          <label class="field full">
+            <span>Support Material (%) — สำหรับงาน overhang/undercut ที่ต้องมีเสาค้ำ</span>
+            <div class="range-wrap">
+              <input type="range" id="supportPct" min="0" max="50" value="0" step="1">
+              <span class="range-val"><span id="supportVal">0</span>%</span>
+            </div>
+          </label>
+
+          <label class="field full">
+            <span>Waste/Purge (%) — วัสดุสูญเสียช่วง priming + skirt (แนะนำ 2–5%)</span>
+            <div class="range-wrap">
+              <input type="range" id="wastePct" min="0" max="15" value="3" step="1">
+              <span class="range-val"><span id="wasteVal">3</span>%</span>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>เวลาแต่งงาน/ชิ้น (นาที)</span>
+            <input type="number" id="postMin" min="0" step="1" value="0" title="เวลาแกะ support + ขัด + ทาสี (ต่อชิ้น)">
+          </label>
+
+          <label class="field">
+            <span>ค่าแรงแต่งงาน (฿/ชม.)</span>
+            <input type="number" id="postRate" min="0" step="10" value="200" title="ค่าแรงคน คิดตามเวลาแต่งงาน">
+          </label>
+
+          <label class="field">
+            <span>ราคาขั้นต่ำ (฿)</span>
+            <input type="number" id="minCharge" min="0" step="10" value="50" title="ราคาขั้นต่ำต่อออเดอร์ — ถ้าคำนวณได้น้อยกว่านี้ จะปรับเป็นขั้นต่ำ">
+          </label>
+
+          <label class="field">
+            <span>ความหนาผนัง (mm)</span>
+            <input type="number" id="wallThickness" min="0.4" step="0.1" value="1.2" title="ความหนา shell — ใช้คำนวณสัดส่วน shell vs infill อัตโนมัติ (3 perimeters @ 0.4mm nozzle ≈ 1.2mm)">
+          </label>
+        </div>
+      </details>
+
       <h3 class="section-title">ข้อมูลลูกค้า (ไม่บังคับ)</h3>
       <div class="form-grid">
         <label class="field">
@@ -222,6 +263,7 @@
       <h3 class="section-title">ใบเสนอราคา</h3>
       <div class="quote-summary">
         <div class="summary-row"><span>น้ำหนัก (โดยประมาณ)</span><strong id="outWeight">0 g</strong></div>
+        <div class="summary-row summary-detail"><span></span><span id="weightDetail" class="weight-detail"></span></div>
         <div class="summary-row"><span>เวลาพิมพ์ (โดยประมาณ)</span><strong id="outTime">0 ชม.</strong></div>
         <div class="summary-row"><span>จำนวน</span><strong id="outQty">1 ชิ้น</strong></div>
       </div>
@@ -230,8 +272,10 @@
         <div class="bd-row"><span>1. ค่าวัสดุ</span><span id="costFilament">฿0</span></div>
         <div class="bd-row"><span>2. ค่าไฟฟ้า</span><span id="costElectricity">฿0</span></div>
         <div class="bd-row"><span>3. ค่าบริการเครื่อง</span><span id="costService">฿0</span></div>
+        <div class="bd-row hidden" id="costPostRow"><span>4. ค่าแต่งงาน</span><span id="costPost">฿0</span></div>
         <div class="bd-row subtotal"><span>ยอดรวม</span><span id="subtotal">฿0</span></div>
-        <div class="bd-row"><span>4. ค่าความเสี่ยง (<span id="riskLabel">0</span>%)</span><span id="costRisk">฿0</span></div>
+        <div class="bd-row"><span>ค่าความเสี่ยง (<span id="riskLabel">0</span>%)</span><span id="costRisk">฿0</span></div>
+        <div class="bd-row hidden min-charge" id="costMinRow"><span>ปรับขั้นต่ำ</span><span id="costMinBump">฿0</span></div>
       </div>
 
       <div class="grand-total">
@@ -255,7 +299,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=24"></script>
-<script src="script.js?v=24"></script>
+<script src="stl-parser.js?v=25"></script>
+<script src="script.js?v=25"></script>
 </body>
 </html>
