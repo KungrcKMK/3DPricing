@@ -56,7 +56,6 @@ const $ = (id) => document.getElementById(id);
 // ============= INIT =============
 document.addEventListener('DOMContentLoaded', () => {
   renderMaterialSelect();
-  renderMaterialCards();
   setupDropZone();
   setupForm();
   setupHardReload();
@@ -120,27 +119,6 @@ function setPriceUI(pricePerG) {
   const ppk = $('pricePerKg');
   if (ppg && document.activeElement !== ppg) ppg.value = pricePerG.toFixed(2);
   if (ppk && document.activeElement !== ppk) ppk.value = (pricePerG * 1000).toFixed(0);
-}
-
-function renderMaterialCards() {
-  const container = $('materialCards');
-  container.innerHTML = '';
-  const all = [
-    ...MATERIALS.FDM.map(m => ({...m, tech: 'FDM'})),
-    ...MATERIALS.SLA.map(m => ({...m, tech: 'SLA'})),
-    ...MATERIALS.SLS.map(m => ({...m, tech: 'SLS'})),
-  ];
-  all.forEach(m => {
-    const card = document.createElement('div');
-    card.className = 'mat-card';
-    card.innerHTML = `
-      <h4>${m.name}</h4>
-      <div class="mat-desc">${m.tech} · ${m.density} g/cm³</div>
-      <div class="mat-price">฿${m.pricePerGram}/g</div>
-      <div class="mat-desc">${m.desc}</div>
-    `;
-    container.appendChild(card);
-  });
 }
 
 // ============= DROP ZONE =============
