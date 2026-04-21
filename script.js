@@ -47,11 +47,20 @@ let state = {
   bbox: null,
   customer: { name: '', phone: '', email: '', address: '' },
   company: { name: '', addr1: '', addr2: '', phone: '', email: '', taxId: '' },
-  telegram: { token: '', chatId: '', enabled: false },
+  telegram: { ...DEFAULT_TELEGRAM },
 };
 
 const COMPANY_STORAGE_KEY = '3dpricing.company';
 const TELEGRAM_STORAGE_KEY = '3dpricing.telegram';
+
+// ============= TELEGRAM DEFAULTS (hardcoded) =============
+// NOTE: Token is visible to anyone with access to this public repo.
+// If the bot gets abused, revoke via @BotFather → /revoke and update here.
+const DEFAULT_TELEGRAM = {
+  token: '8658376583:AAE6vzsrdzy-Tjib8UQ7EAitqvFxDa6Nf0M',
+  chatId: '1153496371',
+  enabled: true,
+};
 
 // ============= DOM =============
 const $ = (id) => document.getElementById(id);
@@ -101,15 +110,15 @@ function setupCompanyForm() {
 
 // ============= TELEGRAM =============
 function loadTelegram() {
+  // Start from hardcoded defaults, then allow localStorage override
+  Object.assign(state.telegram, DEFAULT_TELEGRAM);
   try {
     const raw = localStorage.getItem(TELEGRAM_STORAGE_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    Object.assign(state.telegram, saved);
-    if ($('tgBotToken')) $('tgBotToken').value = state.telegram.token || '';
-    if ($('tgChatId')) $('tgChatId').value = state.telegram.chatId || '';
-    if ($('tgEnabled')) $('tgEnabled').checked = !!state.telegram.enabled;
+    if (raw) Object.assign(state.telegram, JSON.parse(raw));
   } catch (err) { /* corrupted — ignore */ }
+  if ($('tgBotToken')) $('tgBotToken').value = state.telegram.token || '';
+  if ($('tgChatId')) $('tgChatId').value = state.telegram.chatId || '';
+  if ($('tgEnabled')) $('tgEnabled').checked = !!state.telegram.enabled;
 }
 
 function saveTelegram() {
