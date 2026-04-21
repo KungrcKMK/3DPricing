@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDropZone();
   setupForm();
   setupHardReload();
+  setupThumbnailControls();
   recalc();
 });
 
@@ -201,7 +202,7 @@ function handleFile(file) {
       setScaleInputsEnabled(true);
       updateScaledDisplay();
       if (result.verts && result.verts.length > 0) {
-        renderThumbnail(result.verts, result.bbox, $('thumbnail'));
+        renderThumbnail(result.verts, result.bbox);
       }
       recalc();
     } catch (err) {
@@ -252,16 +253,69 @@ function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
-// ============= THUMBNAIL RENDER =============
-function renderThumbnail(verts, bbox, canvas) {
+// ============= THUMBNAIL RENDER (interactive orbit) =============
+let thumbnailState = {
+  verts: null,
+  bbox: null,
+  yaw: 0,
+  pitch: 0,
+  dragging: false,
+  lastX: 0,
+  lastY: 0,
+};
+
+function renderThumbnail(verts, bbox) {
+  thumbnailState.verts = verts;
+  thumbnailState.bbox = bbox;
+  resetThumbnailView();
+  drawThumbnail();
+}
+
+function resetThumbnailView() {
+  const b = thumbnailState.bbox;
+  if (!b) return;
+  const dx = b.x, dy = b.y, dz = b.z;
+  const minAxis = Math.min(dx, dy, dz);
+  const maxAxis = Math.max(dx, dy, dz);
+  const isFlat = minAxis / maxAxis < 0.35;
+
+  if (isFlat) {
+    // Relief / coin / plate — look down the thin axis with slight tilt
+    if (dz === minAxis) {
+      // Z thin → look straight down +Z, tilt slightly
+      thumbnailState.yaw = 0;
+      thumbnailState.pitch = -0.35;
+    } else if (dy === minAxis) {
+      // Y thin → rotate so Y becomes view direction
+      thumbnailState.yaw = 0;
+      thumbnailState.pitch = Math.PI / 2 - 0.35;
+    } else {
+      // X thin
+      thumbnailState.yaw = Math.PI / 2;
+      thumbnailState.pitch = -0.35;
+    }
+  } else {
+    // 3D object — isometric-ish
+    thumbnailState.yaw = Math.PI / 6;
+    thumbnailState.pitch = -Math.PI / 6;
+  }
+}
+
+function drawThumbnail() {
+  const canvas = $('thumbnail');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
+
   // Background
   const grad = ctx.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, '#fafbfd');
   grad.addColorStop(1, '#e4e8ef');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
+
+  const { verts, bbox, yaw, pitch, dragging } = thumbnailState;
+  if (!verts || !bbox) return;
 
   const triCount = verts.length / 9;
   if (triCount === 0) return;
@@ -270,53 +324,55 @@ function renderThumbnail(verts, bbox, canvas) {
   const cy = (bbox.minY + bbox.maxY) / 2;
   const cz = (bbox.minZ + bbox.maxZ) / 2;
 
-  // True isometric projection: camera at (1,1,1) looking at origin, Z-up
-  const SQRT3_2 = 0.8660254; // cos(30°)
+  const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+  const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
 
-  function project(x, y, z) {
+  // Rotate into view space. Camera at +Z looking toward -Z (orthographic).
+  // Yaw around world Z, then pitch around world X. Returns [x, y, z].
+  function transform(x, y, z) {
     x -= cx; y -= cy; z -= cz;
-    return [
-      (x - y) * SQRT3_2,          // screen X
-      -((x + y) * 0.5 - z),       // screen Y (flip because canvas Y down)
-      x + y + z,                  // depth: larger = farther from camera
-    ];
+    const x1 = x * cosY - y * sinY;
+    const y1 = x * sinY + y * cosY;
+    const z1 = z;
+    const y2 = y1 * cosP - z1 * sinP;
+    const z2 = y1 * sinP + z1 * cosP;
+    return [x1, y2, z2];
   }
 
-  // Only downsample extremely large meshes (preserve detail for most files)
-  const MAX_TRIS = 250000;
+  // Downsample heavily during drag for smooth 60fps interaction
+  const MAX_TRIS = dragging ? 25000 : 250000;
   const step = Math.max(1, Math.floor(triCount / MAX_TRIS));
 
-  // Light direction (to light source), normalized — from camera-side, upper
-  const LX = 0.274, LY = 0.274, LZ = 0.913;
+  // Light in view space — upper-front
+  const LX = 0.3, LY = -0.25, LZ = 0.92;
+  const nL = Math.hypot(LX, LY, LZ);
 
   const tris = [];
   let sMinX = Infinity, sMaxX = -Infinity, sMinY = Infinity, sMaxY = -Infinity;
 
   for (let i = 0; i < triCount; i += step) {
     const o = i * 9;
-    const ax = verts[o],    ay = verts[o+1],  az = verts[o+2];
-    const bx = verts[o+3],  by = verts[o+4],  bz = verts[o+5];
-    const cxv = verts[o+6], cyv = verts[o+7], czv = verts[o+8];
+    const A = transform(verts[o],   verts[o+1], verts[o+2]);
+    const B = transform(verts[o+3], verts[o+4], verts[o+5]);
+    const C = transform(verts[o+6], verts[o+7], verts[o+8]);
 
-    // Normal in model space (cross product of two edges)
-    const ex1 = bx - ax, ey1 = by - ay, ez1 = bz - az;
-    const ex2 = cxv - ax, ey2 = cyv - ay, ez2 = czv - az;
+    // Normal in view space
+    const ex1 = B[0] - A[0], ey1 = B[1] - A[1], ez1 = B[2] - A[2];
+    const ex2 = C[0] - A[0], ey2 = C[1] - A[1], ez2 = C[2] - A[2];
     const nx = ey1 * ez2 - ez1 * ey2;
     const ny = ez1 * ex2 - ex1 * ez2;
     const nz = ex1 * ey2 - ey1 * ex2;
 
-    // Backface culling — view dir from model to camera ≈ (1,1,1)/√3
-    // Face visible if normal · view > 0 → nx + ny + nz > 0
-    if (nx + ny + nz <= 0) continue;
+    // Backface cull: camera at +Z, visible iff normal has +Z component
+    if (nz <= 0) continue;
 
-    const nL = Math.hypot(nx, ny, nz) || 1;
-    const intensity = Math.max(0.28, (nx * LX + ny * LY + nz * LZ) / nL);
+    const nmag = Math.hypot(nx, ny, nz) || 1;
+    const intensity = Math.max(0.28, (nx * LX + ny * LY + nz * LZ) / (nmag * nL));
 
-    const A = project(ax, ay, az);
-    const B = project(bx, by, bz);
-    const C = project(cxv, cyv, czv);
+    // Centroid depth — larger Z = closer to camera
+    const depth = (A[2] + B[2] + C[2]) / 3;
 
-    tris.push({ A, B, C, intensity, depth: A[2] + B[2] + C[2] });
+    tris.push({ A, B, C, intensity, depth });
 
     if (A[0] < sMinX) sMinX = A[0]; if (A[0] > sMaxX) sMaxX = A[0];
     if (B[0] < sMinX) sMinX = B[0]; if (B[0] > sMaxX) sMaxX = B[0];
@@ -328,16 +384,14 @@ function renderThumbnail(verts, bbox, canvas) {
 
   if (tris.length === 0) return;
 
-  // Fit to canvas
   const bw = sMaxX - sMinX, bh = sMaxY - sMinY;
   const scale = Math.min(W / bw, H / bh) * 0.88;
   const offX = W/2 - (sMinX + sMaxX)/2 * scale;
-  const offY = H/2 - (sMinY + sMaxY)/2 * scale;
+  const offY = H/2 + (sMinY + sMaxY)/2 * scale; // +: canvas Y is inverted
 
-  // Painter's: farthest first (highest depth) → painted first, near on top
-  tris.sort((p, q) => q.depth - p.depth);
+  // Painter's: far first (smaller Z) → near drawn on top
+  tris.sort((p, q) => p.depth - q.depth);
 
-  // Draw — stroke with same color to fill sub-pixel gaps between tris
   for (const t of tris) {
     const lightness = Math.floor(28 + 50 * t.intensity);
     const color = `hsl(22, 70%, ${lightness}%)`;
@@ -345,16 +399,83 @@ function renderThumbnail(verts, bbox, canvas) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.moveTo(t.A[0]*scale + offX, t.A[1]*scale + offY);
-    ctx.lineTo(t.B[0]*scale + offX, t.B[1]*scale + offY);
-    ctx.lineTo(t.C[0]*scale + offX, t.C[1]*scale + offY);
+    ctx.moveTo(t.A[0]*scale + offX, -t.A[1]*scale + offY);
+    ctx.lineTo(t.B[0]*scale + offX, -t.B[1]*scale + offY);
+    ctx.lineTo(t.C[0]*scale + offX, -t.C[1]*scale + offY);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   }
+
+  // Hint overlay (only when idle)
+  if (!dragging) {
+    ctx.fillStyle = 'rgba(107, 122, 143, 0.75)';
+    ctx.font = '11px "Segoe UI", "Sarabun", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('ลากเพื่อหมุน · ดับเบิลคลิก = รีเซ็ต', W - 8, H - 6);
+  }
+}
+
+function setupThumbnailControls() {
+  const canvas = $('thumbnail');
+  if (!canvas) return;
+  canvas.style.cursor = 'grab';
+
+  function beginDrag(clientX, clientY) {
+    if (!thumbnailState.verts) return false;
+    thumbnailState.dragging = true;
+    thumbnailState.lastX = clientX;
+    thumbnailState.lastY = clientY;
+    canvas.style.cursor = 'grabbing';
+    return true;
+  }
+  function moveDrag(clientX, clientY) {
+    if (!thumbnailState.dragging) return;
+    const dx = clientX - thumbnailState.lastX;
+    const dy = clientY - thumbnailState.lastY;
+    thumbnailState.lastX = clientX;
+    thumbnailState.lastY = clientY;
+    thumbnailState.yaw += dx * 0.01;
+    const LIM = Math.PI / 2 - 0.05;
+    thumbnailState.pitch = Math.max(-LIM, Math.min(LIM, thumbnailState.pitch + dy * 0.01));
+    drawThumbnail();
+  }
+  function endDrag() {
+    if (!thumbnailState.dragging) return;
+    thumbnailState.dragging = false;
+    canvas.style.cursor = 'grab';
+    drawThumbnail(); // redraw at full quality
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (beginDrag(e.clientX, e.clientY)) e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+  window.addEventListener('mouseup', endDrag);
+
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    if (beginDrag(t.clientX, t.clientY)) e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    e.preventDefault();
+    moveDrag(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchend', endDrag);
+  canvas.addEventListener('touchcancel', endDrag);
+
+  canvas.addEventListener('dblclick', () => {
+    if (!thumbnailState.verts) return;
+    resetThumbnailView();
+    drawThumbnail();
+  });
 }
 
 function clearThumbnail() {
+  thumbnailState.verts = null;
+  thumbnailState.bbox = null;
   const canvas = $('thumbnail');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
