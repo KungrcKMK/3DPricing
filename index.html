@@ -185,6 +185,36 @@
           <input type="text" id="custAddress" placeholder="ที่อยู่จัดส่ง">
         </label>
       </div>
+
+      <details class="company-details">
+        <summary>⚙️ ข้อมูลร้าน/บริษัท (สำหรับหัวใบเสนอราคา) — บันทึกอัตโนมัติ</summary>
+        <div class="form-grid" style="margin-top:14px;">
+          <label class="field full">
+            <span>ชื่อร้าน/บริษัท</span>
+            <input type="text" id="coName" placeholder="เช่น บริษัท ABC จำกัด">
+          </label>
+          <label class="field full">
+            <span>ที่อยู่ (บรรทัด 1)</span>
+            <input type="text" id="coAddr1" placeholder="เลขที่ ถนน แขวง/ตำบล">
+          </label>
+          <label class="field full">
+            <span>ที่อยู่ (บรรทัด 2)</span>
+            <input type="text" id="coAddr2" placeholder="เขต/อำเภอ จังหวัด รหัสไปรษณีย์">
+          </label>
+          <label class="field">
+            <span>เบอร์โทร</span>
+            <input type="text" id="coPhone" placeholder="0x-xxxx-xxxx">
+          </label>
+          <label class="field">
+            <span>อีเมล</span>
+            <input type="email" id="coEmail" placeholder="email@example.com">
+          </label>
+          <label class="field full">
+            <span>เลขผู้เสียภาษี</span>
+            <input type="text" id="coTaxId" placeholder="x-xxxx-xxxxx-xx-x">
+          </label>
+        </div>
+      </details>
     </div>
 
     <!-- RIGHT: Quote -->
@@ -225,7 +255,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=17"></script>
-<script src="script.js?v=17"></script>
+<script src="stl-parser.js?v=18"></script>
+<script src="script.js?v=18"></script>
 </body>
 </html>

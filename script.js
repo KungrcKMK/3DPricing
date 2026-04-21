@@ -46,7 +46,10 @@ let state = {
   file: null,
   bbox: null,
   customer: { name: '', phone: '', email: '', address: '' },
+  company: { name: '', addr1: '', addr2: '', phone: '', email: '', taxId: '' },
 };
+
+const COMPANY_STORAGE_KEY = '3dpricing.company';
 
 // ============= DOM =============
 const $ = (id) => document.getElementById(id);
@@ -58,8 +61,39 @@ document.addEventListener('DOMContentLoaded', () => {
   setupForm();
   setupHardReload();
   setupThumbnailControls();
+  loadCompany();
+  setupCompanyForm();
   recalc();
 });
+
+function loadCompany() {
+  try {
+    const raw = localStorage.getItem(COMPANY_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    Object.assign(state.company, saved);
+    const map = { name: 'coName', addr1: 'coAddr1', addr2: 'coAddr2',
+                  phone: 'coPhone', email: 'coEmail', taxId: 'coTaxId' };
+    Object.entries(map).forEach(([k, id]) => {
+      const el = $(id);
+      if (el && state.company[k]) el.value = state.company[k];
+    });
+  } catch (err) { /* corrupted storage — ignore */ }
+}
+
+function setupCompanyForm() {
+  const map = { coName: 'name', coAddr1: 'addr1', coAddr2: 'addr2',
+                coPhone: 'phone', coEmail: 'email', coTaxId: 'taxId' };
+  Object.entries(map).forEach(([id, key]) => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', (e) => {
+      state.company[key] = e.target.value.trim();
+      try { localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(state.company)); }
+      catch (err) { /* storage full — ignore */ }
+    });
+  });
+}
 
 function setupHardReload() {
   const btn = $('hardReload');
@@ -865,11 +899,13 @@ function printQuote() {
     </div>
   </div>
   <div class="company">
-    <strong>[ชื่อร้าน/บริษัท]</strong>
-    [ที่อยู่บรรทัด 1]<br>
-    [ที่อยู่บรรทัด 2]<br>
-    โทร: [0x-xxxx-xxxx] · อีเมล: [email]<br>
-    เลขผู้เสียภาษี: [x-xxxx-xxxxx-xx-x]
+    <strong>${state.company.name || '[ชื่อร้าน/บริษัท]'}</strong>
+    ${state.company.addr1 || '[ที่อยู่บรรทัด 1]'}<br>
+    ${state.company.addr2 || '[ที่อยู่บรรทัด 2]'}<br>
+    ${(state.company.phone || state.company.email) ? `
+      ${state.company.phone ? 'โทร: ' + state.company.phone : ''}${state.company.phone && state.company.email ? ' · ' : ''}${state.company.email ? 'อีเมล: ' + state.company.email : ''}<br>
+    ` : 'โทร: [0x-xxxx-xxxx] · อีเมล: [email]<br>'}
+    เลขผู้เสียภาษี: ${state.company.taxId || '[x-xxxx-xxxxx-xx-x]'}
   </div>
 </div>
 

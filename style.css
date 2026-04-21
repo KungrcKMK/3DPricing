@@ -484,6 +484,34 @@ body {
 .about li { padding: 6px 0; color: var(--text); }
 .about strong { color: var(--primary-dark); }
 
+/* COMPANY DETAILS (collapsible) */
+.company-details {
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfd;
+  padding: 12px 14px;
+}
+.company-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--dark);
+  user-select: none;
+  padding: 2px 0;
+  list-style: none;
+}
+.company-details summary::-webkit-details-marker { display: none; }
+.company-details summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--primary);
+  transition: transform 0.15s;
+}
+.company-details[open] summary::before { transform: rotate(90deg); }
+.company-details summary:hover { color: var(--primary); }
+
 /* FOOTER */
 .site-footer {
   background: var(--dark);
