@@ -20,11 +20,12 @@ const MATERIALS = {
 };
 
 // ============= PRICING PARAMS =============
-const WASTE_FACTOR = 1.05;
 const SHELL_VOLUME_RATIO = 0.15; // outer shell is always printed ~100%, about 15% of total
 const DEFAULT_POWER = { FDM: 150, SLA: 80, SLS: 2000 }; // watt
-const DEFAULT_ELEC_RATE = 4.5;  // ฿/kWh
-const DEFAULT_LABOR_RATE = 200; // ฿/hr
+const DEFAULT_ELEC_RATE = 4.5;   // ฿/kWh
+const DEFAULT_MACHINE_RATE = 15; // ฿/hr — depreciation + maintenance (คืนทุนเครื่อง)
+const DEFAULT_SETUP_FEE = 50;    // ฿/order — one-time setup & file prep
+const DEFAULT_RISK_PCT = 0;      // % markup for difficult prints
 const STORAGE_KEY_PRICES = '3dpricing:customPrices';
 
 // ============= STATE =============
@@ -41,7 +42,9 @@ let state = {
   qty: 1,
   powerWatt: DEFAULT_POWER.FDM,
   elecRate: DEFAULT_ELEC_RATE,
-  laborRate: DEFAULT_LABOR_RATE,
+  machineRate: DEFAULT_MACHINE_RATE,
+  setupFee: DEFAULT_SETUP_FEE,
+  riskPct: DEFAULT_RISK_PCT,
   file: null,
   bbox: null,
   customer: { name: '', phone: '', email: '', address: '' },
@@ -568,8 +571,17 @@ function setupForm() {
     state.elecRate = parseFloat(e.target.value) || 0;
     recalc();
   });
-  $('laborRate').addEventListener('input', (e) => {
-    state.laborRate = parseFloat(e.target.value) || 0;
+  $('machineRate').addEventListener('input', (e) => {
+    state.machineRate = parseFloat(e.target.value) || 0;
+    recalc();
+  });
+  $('setupFee').addEventListener('input', (e) => {
+    state.setupFee = parseFloat(e.target.value) || 0;
+    recalc();
+  });
+  $('riskPct').addEventListener('input', (e) => {
+    state.riskPct = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+    $('riskVal').textContent = state.riskPct;
     recalc();
   });
 
@@ -619,12 +631,16 @@ function recalc() {
   const weight = calcWeight();
   const time = calcPrintTime();
 
-  const filamentCost = weight * state.pricePerGram * WASTE_FACTOR;
+  // Per-piece base costs
+  const filamentCost = weight * state.pricePerGram;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
-  const laborCost = time * state.laborRate;
+  const machineCost = time * state.machineRate;
 
-  const perPiece = filamentCost + electricityCost + laborCost;
-  const total = perPiece * state.qty;
+  const perPieceBase = filamentCost + electricityCost + machineCost;
+  const allPieces = perPieceBase * state.qty;
+  const subtotal = allPieces + state.setupFee;            // setup added once per order
+  const riskAmount = subtotal * (state.riskPct / 100);
+  const total = subtotal + riskAmount;
 
   // Update UI
   $('outWeight').textContent = `${weight.toFixed(1)} g`;
@@ -633,7 +649,12 @@ function recalc() {
 
   $('costFilament').textContent = fmt(filamentCost * state.qty);
   $('costElectricity').textContent = fmt(electricityCost * state.qty);
-  $('costLabor').textContent = fmt(laborCost * state.qty);
+  $('costMachine').textContent = fmt(machineCost * state.qty);
+  $('costSetup').textContent = fmt(state.setupFee);
+  $('subtotal').textContent = fmt(subtotal);
+  $('costRisk').textContent = fmt(riskAmount);
+  $('riskLabel').textContent = state.riskPct;
+  $('riskVal').textContent = state.riskPct;
   $('total').textContent = fmt(total);
 }
 
@@ -645,6 +666,9 @@ function copyQuote() {
   const mat = getMaterial();
   const weight = calcWeight();
   const time = calcPrintTime();
+  const riskLine = state.riskPct > 0
+    ? `ค่าความเสี่ยง (${state.riskPct}%): ${$('costRisk').textContent}\n`
+    : '';
   const lines = [
     '=== ใบเสนอราคา 3D Printing ===',
     `ไฟล์: ${state.file ? state.file.name : '(manual input)'}`,
@@ -655,14 +679,17 @@ function copyQuote() {
     `เวลาพิมพ์: ${time.toFixed(2)} ชม.`,
     `Infill: ${state.infill}% · Layer: ${state.layer}mm`,
     `กำลังไฟ: ${state.powerWatt} W · ค่าไฟ: ฿${state.elecRate}/kWh`,
-    `ค่าแรง: ฿${state.laborRate}/ชม.`,
+    `ค่าเครื่อง: ฿${state.machineRate}/ชม. · Setup: ฿${state.setupFee}${state.riskPct > 0 ? ' · Risk: ' + state.riskPct + '%' : ''}`,
     `จำนวน: ${state.qty} ชิ้น`,
     '',
-    `ค่าเส้นพลาสติก: ${$('costFilament').textContent}`,
+    `ค่าวัสดุ: ${$('costFilament').textContent}`,
     `ค่าไฟฟ้า: ${$('costElectricity').textContent}`,
-    `ค่าแรงงาน: ${$('costLabor').textContent}`,
+    `ค่าเครื่อง: ${$('costMachine').textContent}`,
+    `ค่า Setup: ${$('costSetup').textContent}`,
+    `ยอดรวม: ${$('subtotal').textContent}`,
+    (state.riskPct > 0 ? `ค่าความเสี่ยง (${state.riskPct}%): ${$('costRisk').textContent}` : null),
     `รวมทั้งสิ้น: ${$('total').textContent}`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
   navigator.clipboard.writeText(lines)
     .then(() => alert('คัดลอกใบเสนอราคาแล้ว'))
     .catch(() => alert('ไม่สามารถคัดลอกได้'));
@@ -693,11 +720,15 @@ function printQuote() {
   const mat = getMaterial();
   const weight = calcWeight();
   const time = calcPrintTime();
-  const filamentCost = weight * state.pricePerGram * WASTE_FACTOR;
+  const filamentCost = weight * state.pricePerGram;
   const electricityCost = (state.powerWatt * time / 1000) * state.elecRate;
-  const laborCost = time * state.laborRate;
-  const perPiece = filamentCost + electricityCost + laborCost;
-  const total = perPiece * state.qty;
+  const machineCost = time * state.machineRate;
+  const perPieceBase = filamentCost + electricityCost + machineCost;
+  const allPieces = perPieceBase * state.qty;
+  const subtotal = allPieces + state.setupFee;
+  const riskAmount = subtotal * (state.riskPct / 100);
+  const total = subtotal + riskAmount;
+  const perPieceDisplay = state.qty > 0 ? total / state.qty : 0;
 
   const now = new Date();
   const validUntil = new Date(now);
@@ -819,7 +850,7 @@ ${hasCustomer ? `
         Layer ${state.layer} mm · Infill ${state.infill}%
       </td>
       <td class="num">${state.qty}</td>
-      <td class="num">${fmt(perPiece)}</td>
+      <td class="num">${fmt(perPieceDisplay)}</td>
       <td class="num"><strong>${fmt(total)}</strong></td>
     </tr>
   </tbody>
@@ -827,10 +858,13 @@ ${hasCustomer ? `
 
 <div class="summary-grid">
   <div class="cost-breakdown">
-    <h4>รายละเอียดต้นทุน (ต่อชิ้น)</h4>
-    <div class="cb-row"><span>ค่าเส้นพลาสติก (${weight.toFixed(1)}g × ฿${state.pricePerGram}/g + 5% waste)</span><span>${fmt(filamentCost)}</span></div>
-    <div class="cb-row"><span>ค่าไฟฟ้า (${state.powerWatt}W × ${time.toFixed(2)}ชม. × ฿${state.elecRate}/kWh)</span><span>${fmt(electricityCost)}</span></div>
-    <div class="cb-row"><span>ค่าแรงงาน (${time.toFixed(2)}ชม. × ฿${state.laborRate}/ชม.)</span><span>${fmt(laborCost)}</span></div>
+    <h4>รายละเอียดต้นทุน</h4>
+    <div class="cb-row"><span>1. ค่าวัสดุ (${weight.toFixed(1)}g × ฿${state.pricePerGram}/g × ${state.qty})</span><span>${fmt(filamentCost * state.qty)}</span></div>
+    <div class="cb-row"><span>2. ค่าไฟฟ้า (${state.powerWatt}W × ${time.toFixed(2)}ชม. × ฿${state.elecRate}/kWh × ${state.qty})</span><span>${fmt(electricityCost * state.qty)}</span></div>
+    <div class="cb-row"><span>3. ค่าเครื่อง Fixed (${time.toFixed(2)}ชม. × ฿${state.machineRate}/ชม. × ${state.qty})</span><span>${fmt(machineCost * state.qty)}</span></div>
+    <div class="cb-row"><span>4. ค่า Setup (ครั้งเดียว/ออเดอร์)</span><span>${fmt(state.setupFee)}</span></div>
+    <div class="cb-row" style="border-top:1px dashed #ccc; padding-top:6px; margin-top:4px; font-weight:600;"><span>ยอดรวม</span><span>${fmt(subtotal)}</span></div>
+    ${state.riskPct > 0 ? `<div class="cb-row"><span>5. ค่าความเสี่ยง (${state.riskPct}%)</span><span>${fmt(riskAmount)}</span></div>` : ''}
   </div>
   <div class="grand">
     <span>รวมทั้งสิ้น</span>

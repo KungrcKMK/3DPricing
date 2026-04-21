@@ -148,9 +148,22 @@
           <input type="number" id="elecRate" min="0" step="0.1" value="4.5">
         </label>
 
+        <label class="field">
+          <span>ค่าเครื่อง Fixed (฿/ชม.)</span>
+          <input type="number" id="machineRate" min="0" step="1" value="15" title="ค่าคืนทุนเครื่อง + ซ่อมบำรุง (แนะนำ 10–30 ฿/ชม.)">
+        </label>
+
+        <label class="field">
+          <span>ค่า Setup (฿/ออเดอร์)</span>
+          <input type="number" id="setupFee" min="0" step="10" value="50" title="ค่าเตรียมไฟล์ + จัดการชิ้นงาน คิดครั้งเดียวต่อออเดอร์">
+        </label>
+
         <label class="field full">
-          <span>ค่าแรงงาน (฿/ชม.)</span>
-          <input type="number" id="laborRate" min="0" step="10" value="200">
+          <span>ค่าความเสี่ยง (%) — สำหรับงานยาก/วัสดุพิเศษ เช่น TPU, Support เยอะ</span>
+          <div class="range-wrap">
+            <input type="range" id="riskPct" min="0" max="30" value="0" step="1">
+            <span class="range-val"><span id="riskVal">0</span>%</span>
+          </div>
         </label>
       </div>
 
@@ -185,9 +198,12 @@
       </div>
 
       <div class="breakdown">
-        <div class="bd-row"><span>ค่าเส้นพลาสติก</span><span id="costFilament">฿0</span></div>
-        <div class="bd-row"><span>ค่าไฟฟ้า</span><span id="costElectricity">฿0</span></div>
-        <div class="bd-row"><span>ค่าแรงงาน</span><span id="costLabor">฿0</span></div>
+        <div class="bd-row"><span>1. ค่าวัสดุ</span><span id="costFilament">฿0</span></div>
+        <div class="bd-row"><span>2. ค่าไฟฟ้า</span><span id="costElectricity">฿0</span></div>
+        <div class="bd-row"><span>3. ค่าเครื่อง (Fixed)</span><span id="costMachine">฿0</span></div>
+        <div class="bd-row"><span>4. ค่า Setup</span><span id="costSetup">฿0</span></div>
+        <div class="bd-row subtotal"><span>ยอดรวม</span><span id="subtotal">฿0</span></div>
+        <div class="bd-row"><span>5. ค่าความเสี่ยง (<span id="riskLabel">0</span>%)</span><span id="costRisk">฿0</span></div>
       </div>
 
       <div class="grand-total">
@@ -210,14 +226,18 @@
   </section>
 
   <section class="about" id="about">
-    <h2>สูตรคำนวณราคา</h2>
+    <h2>สูตรคำนวณราคา (Professional Version)</h2>
+    <p style="color:var(--muted); margin-bottom:12px;">โครงสร้างต้นทุน 4 ส่วน + ค่าความเสี่ยง — คืนทุนเครื่องพร้อมเผื่องานยาก</p>
     <ol>
-      <li><strong>น้ำหนัก</strong> = ปริมาตร (cm³) × ความหนาแน่นวัสดุ (g/cm³) × (shell 15% + Infill% × 85%)</li>
+      <li><strong>น้ำหนัก</strong> = ปริมาตร × ความหนาแน่น × [15% shell + (85% × Infill%)]</li>
       <li><strong>เวลาพิมพ์</strong> = น้ำหนัก ÷ อัตราการพิมพ์ × (0.20 ÷ Layer Height)</li>
-      <li><strong>ค่าเส้นพลาสติก</strong> = น้ำหนัก × ราคาวัสดุ/กรัม × (1 + 5% waste)</li>
-      <li><strong>ค่าไฟฟ้า</strong> = (กำลังไฟ W × เวลาพิมพ์ ÷ 1000) × ราคาไฟ/kWh</li>
-      <li><strong>ค่าแรงงาน</strong> = เวลาพิมพ์ × ค่าแรง/ชั่วโมง</li>
-      <li><strong>รวมทั้งสิ้น</strong> = (ค่าเส้น + ค่าไฟ + ค่าแรง) × จำนวนชิ้น</li>
+      <li><strong>1. ค่าวัสดุ</strong> = น้ำหนัก (g) × ราคา/กรัม</li>
+      <li><strong>2. ค่าไฟฟ้า</strong> = (กำลังไฟ W ÷ 1000) × เวลา × ราคา/kWh</li>
+      <li><strong>3. ค่าเครื่อง (Fixed)</strong> = เวลา × ค่าเครื่อง/ชม. — คืนทุนเครื่อง + ซ่อมบำรุง (10–30 ฿/ชม.)</li>
+      <li><strong>4. ค่า Setup</strong> = ค่าบริการต่อออเดอร์ (เตรียมไฟล์ + จัดการชิ้นงาน)</li>
+      <li><strong>ยอดรวม</strong> = (1 + 2 + 3) × จำนวนชิ้น + Setup</li>
+      <li><strong>5. ค่าความเสี่ยง</strong> = ยอดรวม × Risk% (สำหรับงานยาก/วัสดุพิเศษ TPU, Support เยอะ ฯลฯ)</li>
+      <li><strong>รวมทั้งสิ้น</strong> = ยอดรวม + ค่าความเสี่ยง</li>
     </ol>
   </section>
 </main>
@@ -228,7 +248,7 @@
   </div>
 </footer>
 
-<script src="stl-parser.js?v=9"></script>
-<script src="script.js?v=9"></script>
+<script src="stl-parser.js?v=10"></script>
+<script src="script.js?v=10"></script>
 </body>
 </html>
