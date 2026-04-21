@@ -27,6 +27,18 @@ const DEFAULT_SERVICE_RATE = 30; // ฿/hr — all-in overhead: depreciation + s
 const DEFAULT_RISK_PCT = 0;      // % markup for difficult prints
 const STORAGE_KEY_PRICES = '3dpricing:customPrices';
 
+const COMPANY_STORAGE_KEY = '3dpricing.company';
+const TELEGRAM_STORAGE_KEY = '3dpricing.telegram';
+
+// ============= TELEGRAM DEFAULTS (hardcoded) =============
+// NOTE: Token is visible to anyone with access to this public repo.
+// If the bot gets abused, revoke via @BotFather → /revoke and update here.
+const DEFAULT_TELEGRAM = {
+  token: '8658376583:AAE6vzsrdzy-Tjib8UQ7EAitqvFxDa6Nf0M',
+  chatId: '1153496371',
+  enabled: true,
+};
+
 // ============= STATE =============
 let state = {
   volume: 0,            // cm^3 — effective (after scale) used for pricing
@@ -48,18 +60,6 @@ let state = {
   customer: { name: '', phone: '', email: '', address: '' },
   company: { name: '', addr1: '', addr2: '', phone: '', email: '', taxId: '' },
   telegram: { ...DEFAULT_TELEGRAM },
-};
-
-const COMPANY_STORAGE_KEY = '3dpricing.company';
-const TELEGRAM_STORAGE_KEY = '3dpricing.telegram';
-
-// ============= TELEGRAM DEFAULTS (hardcoded) =============
-// NOTE: Token is visible to anyone with access to this public repo.
-// If the bot gets abused, revoke via @BotFather → /revoke and update here.
-const DEFAULT_TELEGRAM = {
-  token: '8658376583:AAE6vzsrdzy-Tjib8UQ7EAitqvFxDa6Nf0M',
-  chatId: '1153496371',
-  enabled: true,
 };
 
 // ============= DOM =============
